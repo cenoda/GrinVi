@@ -1,0 +1,23 @@
+# Environment
+.env
+.env.local
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+.pytest_cache/
+
+# Training artifacts
+training_log.txt
+checkpoints/
+*.log
+
+# Data (large files - tracked via Git LFS)
+# data/ is tracked via LFS, not ignored
+data/raw/korean_instructions.jsonl
+data/processed/train.txt
+
+# IDE
+.idea/

@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "grinvi"
+version = "0.1.0"
+description = "General Response Intelligence Neuron Via Inference — a decoder-only LLM built with PyTorch"
+authors = [{ name = "GrinVi Team" }]
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+dependencies = [
+    "torch>=2.2.0",
+    "numpy>=1.26.0",
+    "tiktoken>=0.7.0",
+    "sentencepiece>=0.2.0",
+    "datasets>=2.18.0",
+    "tqdm>=4.66.0",
+    "rich>=13.7.0",
+    "safetensors>=0.4.3",
+    "google-generativeai>=0.8.0",
+    "google-genai>=1.0.0",
+]
+
+[project.scripts]
+grinvi-train = "scripts.train:main"
+grinvi-generate = "scripts.generate:main"
+
+[project.optional-dependencies]
+korean_exam = [
+    "datasets>=2.14.0",
+    "huggingface-hub>=0.20.0",
+    "pdfplumber>=0.10.0",
+    "requests>=2.31.0",
+    "beautifulsoup4>=4.12.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["grinvi*", "scripts*"]
+
