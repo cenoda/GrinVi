@@ -47,15 +47,35 @@ pip install -r requirements.txt -q
 
 # 5. 데이터 다운로드
 echo "Downloading training data from Google Drive..."
-rclone copy gdrive:GrinVi/data/ /workspace/GrinVi/data/ --progress
+rclone copy gdrive:GrinVi/data/raw/ /workspace/GrinVi/data/raw/ --progress
+rclone copy gdrive:GrinVi/data/processed/ /workspace/GrinVi/data/processed/ --progress
 
 echo "Data ready!"
 du -sh data/processed/train.txt
 
-# 6. GPU 확인
+# 6. 체크포인트 복원 (드라이브에 있으면 받아오기)
+echo "Checking for saved checkpoints on Google Drive..."
+rclone copy gdrive:GrinVi/checkpoints/ /workspace/GrinVi/checkpoints/ --progress
+
+# 가장 최근 체크포인트 찾기
+RESUME_FLAG=""
+LATEST_CKPT=$(ls -td /workspace/GrinVi/checkpoints/step-* 2>/dev/null | grep -v step-final | head -1)
+if [ -n "$LATEST_CKPT" ]; then
+    echo "Resuming from checkpoint: $LATEST_CKPT"
+    RESUME_FLAG="--resume $LATEST_CKPT"
+else
+    echo "No checkpoint found, starting from scratch."
+fi
+
+# 7. GPU 확인
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 
-# 7. 학습 시작
+# 8. 백업 프로세스 시작
+echo "Starting checkpoint backup daemon..."
+nohup bash scripts/backup_checkpoints.sh /workspace/GrinVi > /workspace/GrinVi/backup.log 2>&1 &
+echo "Backup PID: $!"
+
+# 9. 학습 시작
 echo "Starting training..."
 nohup python scripts/train.py \
     --preset medium \
@@ -73,7 +93,9 @@ nohup python scripts/train.py \
     --grad_ckpt \
     --compile \
     --keep_last_n 3 \
+    $RESUME_FLAG \
     > training.log 2>&1 &
 
 echo "Training PID: $!"
 echo "Monitor: tail -f /workspace/GrinVi/training.log"
+echo "Backup:  tail -f /workspace/GrinVi/backup.log"
