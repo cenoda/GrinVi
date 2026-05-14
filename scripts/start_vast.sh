@@ -53,18 +53,28 @@ rclone copy gdrive:GrinVi/data/processed/ /workspace/GrinVi/data/processed/ --pr
 echo "Data ready!"
 du -sh data/processed/train.txt
 
-# 6. 체크포인트 복원 (드라이브에 있으면 받아오기)
-echo "Checking for saved checkpoints on Google Drive..."
-rclone copy gdrive:GrinVi/checkpoints/ /workspace/GrinVi/checkpoints/ --progress
+# 6. 체크포인트 복원 (medium 모델만 받아오기)
+echo "Checking for medium checkpoints on Google Drive..."
+mkdir -p /workspace/GrinVi/checkpoints
 
-# 가장 최근 체크포인트 찾기
+# 드라이브에서 체크포인트 목록 가져와서 medium(hidden_size=1024)만 필터링
+for ckpt in $(rclone lsd gdrive:GrinVi/checkpoints/ 2>/dev/null | awk '{print $NF}' | grep "^step-" | grep -v "step-final"); do
+    config=$(rclone cat "gdrive:GrinVi/checkpoints/$ckpt/config.json" 2>/dev/null)
+    hidden=$(echo "$config" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('hidden_size',0))" 2>/dev/null)
+    if [ "$hidden" = "1024" ]; then
+        echo "Found medium checkpoint: $ckpt (hidden_size=1024)"
+        rclone copy "gdrive:GrinVi/checkpoints/$ckpt" "/workspace/GrinVi/checkpoints/$ckpt" --progress
+    fi
+done
+
+# 가장 최근 medium 체크포인트 찾기
 RESUME_FLAG=""
 LATEST_CKPT=$(ls -td /workspace/GrinVi/checkpoints/step-* 2>/dev/null | grep -v step-final | head -1)
 if [ -n "$LATEST_CKPT" ]; then
     echo "Resuming from checkpoint: $LATEST_CKPT"
     RESUME_FLAG="--resume $LATEST_CKPT"
 else
-    echo "No checkpoint found, starting from scratch."
+    echo "No medium checkpoint found, starting from scratch."
 fi
 
 # 7. GPU 확인
@@ -83,9 +93,9 @@ nohup python scripts/train.py \
     --tokenizer_model data/raw/ko_wikipedia/ko_tokenizer.model \
     --data data/processed/train.txt \
     --seq_len 512 \
-    --batch_size 64 \
-    --grad_accum 2 \
-    --max_steps 100000 \
+    --batch_size 128 \
+    --grad_accum 1 \
+    --max_steps 150000 \
     --eval_interval 2000 \
     --save_interval 2000 \
     --lr 3e-4 \
