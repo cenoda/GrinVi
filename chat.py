@@ -35,6 +35,11 @@ def find_latest_checkpoint(checkpoint_dir: str = "checkpoints") -> Path:
 
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--checkpoint", type=str, default=None)
+    args = parser.parse_args()
+
     console.print()
     console.print(Panel.fit(
         "[bold cyan]💚 GrinVi Chat[/bold cyan]\n"
@@ -44,9 +49,13 @@ def main():
     ))
     console.print()
 
-    console.print("[yellow]Loading latest checkpoint...[/yellow]")
-    ckpt_path = find_latest_checkpoint()
-    console.print(f"[green]✓ Using:[/green] {ckpt_path}")
+    if args.checkpoint:
+        ckpt_path = Path(args.checkpoint)
+        console.print(f"[green]✓ Using:[/green] {ckpt_path}")
+    else:
+        console.print("[yellow]Loading latest checkpoint...[/yellow]")
+        ckpt_path = find_latest_checkpoint()
+        console.print(f"[green]✓ Using:[/green] {ckpt_path}")
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
