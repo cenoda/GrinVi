@@ -14,9 +14,8 @@ training_log.txt
 checkpoints/
 *.log
 
-# Data (large files - tracked via Git LFS)
-# data/ is tracked via LFS, not ignored
-data/raw/korean_instructions.jsonl
+# Data (large files - not tracked in git)
+data/raw/
 data/processed/train.txt
 
 # IDE

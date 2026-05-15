@@ -512,8 +512,9 @@ def run_worker(
             break
         i += 1
 
-        # 무한 모드: 주기적으로 Director에게 새 프롬프트 요청
-        if infinite and i % refresh_interval == 1 and director_fn and director_client:
+        # 주기적으로 Director에게 새 프롬프트 요청 (유한/무한 모드 모두)
+        need_refresh = (i % refresh_interval == 1) and director_fn and director_client
+        if need_refresh:
             print(f"  [{name}] 🔄 Refreshing prompts (batch {i})...")
             try:
                 new_prompts = director_fn(director_client, count=20, mode=mode)
@@ -524,7 +525,9 @@ def run_worker(
                         prompt_pool = fresh
                         print(f"  [{name}] ✨ Got {len(fresh)} fresh prompts")
                     else:
-                        print(f"  [{name}] ⚠ All new prompts already used, keeping pool")
+                        # 전부 중복이면 그냥 새 풀로 교체 (반복보다 낫다)
+                        prompt_pool = new_prompts
+                        print(f"  [{name}] ♻ All new prompts already used, replacing pool anyway")
             except Exception as e:
                 print(f"  [{name}] ⚠ Director refresh failed: {e}")
 
@@ -533,8 +536,24 @@ def run_worker(
         if unused:
             prompt = random.choice(unused)
         else:
-            # 전부 사용했으면 풀에서 랜덤 (반복 허용)
-            prompt = random.choice(prompt_pool)
+            # 전부 사용했으면 director에게 즉시 새 프롬프트 요청
+            if director_fn and director_client:
+                try:
+                    new_prompts = director_fn(director_client, count=20, mode=mode)
+                    fresh = [p for p in new_prompts if p not in used_prompts]
+                    if fresh:
+                        prompt_pool = fresh
+                        prompt = random.choice(fresh)
+                        print(f"  [{name}] ✨ Pool exhausted — got {len(fresh)} new prompts")
+                    else:
+                        # 정말 다 썼으면 used_prompts 절반 초기화 후 재사용
+                        used_prompts = set(list(used_prompts)[len(used_prompts)//2:])
+                        prompt = random.choice(prompt_pool)
+                        print(f"  [{name}] 🔁 Resetting half of used_prompts to allow reuse")
+                except Exception:
+                    prompt = random.choice(prompt_pool)
+            else:
+                prompt = random.choice(prompt_pool)
         used_prompts.add(prompt)
 
         batch_label = f"{i:4d}/∞" if infinite else f"{i:4d}/{batches}"
@@ -595,7 +614,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Generate Korean training data using AI teachers")
     parser.add_argument("--output-dir", default=None, help="Output directory for data files (default: data/generated/{mode}/run_{YYYYMMDD}/)")
     parser.add_argument("--batches", type=int, default=200, help="Batches per teacher")
-    parser.add_argument("--teacher", choices=["gemini", "deepseek", "mistral", "openai", "both", "all"], default="both")
+    parser.add_argument("--teacher", choices=["gemini", "deepseek", "mistral", "openai", "lmstudio", "both", "all"], default="both")
     parser.add_argument("--mode", choices=["text", "qa"], default="text", help="Generation mode: 'text' (general) or 'qa' (Question/Answer pairs)")
     parser.add_argument("--delay", type=float, default=1.0, help="Delay between calls per teacher")
     parser.add_argument("--merge", action="store_true", help="생성 완료 후 data/processed/train.txt에 자동 병합")
@@ -614,6 +633,7 @@ def main() -> None:
     use_deepseek = args.teacher in ("deepseek", "both", "all")
     use_mistral = args.teacher in ("mistral", "all")
     use_openai = args.teacher in ("openai", "all")
+    use_lmstudio = args.teacher in ("lmstudio",)
 
     if use_gemini and not gemini_key:
         print("❌ GEMINI_API_KEY missing in .env")
@@ -638,6 +658,7 @@ def main() -> None:
     deepseek_output = output_dir / "deepseek.jsonl"
     mistral_output = output_dir / "mistral.jsonl"
     openai_output = output_dir / "openai.jsonl"
+    lmstudio_output = output_dir / "lmstudio.jsonl"
 
     teachers_str = args.teacher.upper()
 
@@ -755,6 +776,101 @@ def main() -> None:
             threads.append(("OpenAI", openai_output, t))
         except Exception as e:
             print(f"❌ Could not init OpenAI: {e}")
+
+    if use_lmstudio:
+        try:
+            from openai import OpenAI as _OpenAI
+            lmstudio_base_url = os.getenv("LMSTUDIO_BASE_URL", "http://localhost:1234/v1")
+            lmstudio_client = _OpenAI(base_url=lmstudio_base_url, api_key="lm-studio")
+            # 사용 가능한 모델 중 한국어 가능한 것 선택
+            models = lmstudio_client.models.list()
+            lmstudio_model = None
+            # 환경변수로 모델 강제 지정 가능
+            env_model = os.getenv("LMSTUDIO_MODEL", "").strip()
+            if env_model:
+                lmstudio_model = env_model
+            else:
+                preferred = ["gemma", "qwen", "mistral", "llama", "deepseek"]
+                for pref in preferred:
+                    for m in models.data:
+                        if pref in m.id.lower():
+                            lmstudio_model = m.id
+                            break
+                    if lmstudio_model:
+                        break
+            if not lmstudio_model and models.data:
+                lmstudio_model = models.data[0].id
+            if not lmstudio_model:
+                raise ValueError("No models loaded in LM Studio")
+
+            print(f"🖥️  LM Studio model: {lmstudio_model}")
+
+            def generate_lmstudio(client, prompt: str, mode: str = "text", system_prompt: str = None) -> str:
+                if system_prompt:
+                    sys_msg = system_prompt
+                elif mode == "text":
+                    sys_msg = "당신은 한국어로 긴 글을 작성하는 전문 작가입니다. 주어진 주제에 대해 상세하고 풍부한 내용으로 장문의 글을 작성하세요."
+                else:
+                    sys_msg = "당신은 한국어 교육 전문가입니다. 주어진 주제에 대해 질문과 상세한 답변을 작성하세요."
+                resp = client.chat.completions.create(
+                    model=lmstudio_model,
+                    messages=[
+                        {"role": "system", "content": sys_msg},
+                        {"role": "user", "content": prompt},
+                    ],
+                    max_tokens=2048,
+                    temperature=0.8,
+                )
+                return resp.choices[0].message.content.strip()
+
+            _lmstudio_used_topics: set[str] = set()
+
+            def generate_dynamic_prompts_lmstudio(client, count=30, mode="text"):
+                avoid = ""
+                if _lmstudio_used_topics:
+                    sample = list(_lmstudio_used_topics)[-20:]  # 최근 20개만 전달
+                    avoid = f"\n다음 주제는 이미 사용했으니 제외해줘: {', '.join(sample)}"
+
+                if mode == "text":
+                    instruction = (
+                        f"한국어 장문 글쓰기 학습 데이터를 위한 다양한 주제 {count}개를 한 줄씩 나열해줘. "
+                        "일상, 철학, 사회, 과학, 역사, 문화, 감정, 직업, 환경 등 카테고리를 골고루 섞어줘. "
+                        "번호 없이 주제만 출력해줘." + avoid
+                    )
+                else:
+                    instruction = (
+                        f"한국어 QA 학습 데이터를 위한 다양한 질문 {count}개를 한 줄씩 나열해줘. "
+                        "과학, 역사, 기술, 철학, 일상, 언어, 수학, 사회 등 카테고리를 골고루 섞어줘. "
+                        "번호 없이 질문만 출력해줘." + avoid
+                    )
+
+                try:
+                    resp = client.chat.completions.create(
+                        model=lmstudio_model,
+                        messages=[{"role": "user", "content": instruction}],
+                        max_tokens=1024,
+                        temperature=1.0,
+                    )
+                    lines = resp.choices[0].message.content.strip().split("\n")
+                    result = [l.strip().lstrip("0123456789.-) ") for l in lines if l.strip()][:count]
+                    _lmstudio_used_topics.update(result)
+                    return result
+                except Exception as e:
+                    print(f"  [LMStudio Director] ⚠ {e}")
+                    return []
+
+            shifted_prompts = prompts[len(prompts)//7:] + prompts[:len(prompts)//7]
+            t = threading.Thread(
+                target=run_worker,
+                args=("LMStudio", generate_lmstudio, lmstudio_client,
+                      shifted_prompts, args.batches, lmstudio_output, args.delay, lock, stats,
+                      gemini_client, args.mode, gemini_model),
+                kwargs={"director_fn": generate_dynamic_prompts_lmstudio, "director_client": lmstudio_client},
+                daemon=True,
+            )
+            threads.append(("LMStudio", lmstudio_output, t))
+        except Exception as e:
+            print(f"❌ Could not init LM Studio: {e}")
 
     if not threads:
         print("❌ No teachers enabled!")

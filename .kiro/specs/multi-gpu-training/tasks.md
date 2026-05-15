@@ -7,13 +7,13 @@
 
 ## Tasks
 
-- [ ] 1. TrainerConfig에 DDP 관련 필드 추가
+- [x] 1. TrainerConfig에 DDP 관련 필드 추가
   - `grinvi/trainer.py`의 `TrainerConfig`에 `world_size: int = 1`, `scale_lr: str = "none"` 필드를 추가한다.
   - `scale_lr` 허용 값: `"linear"`, `"sqrt"`, `"none"`
   - _Requirements: 4.1, 4.2_
 
-- [ ] 2. `_compute_effective_lr` 함수 구현 및 검증
-  - [ ] 2.1 `_compute_effective_lr(base_lr, world_size, scale_lr)` 순수 함수를 `grinvi/trainer.py`에 구현한다.
+- [x] 2. `_compute_effective_lr` 함수 구현 및 검증
+  - [x] 2.1 `_compute_effective_lr(base_lr, world_size, scale_lr)` 순수 함수를 `grinvi/trainer.py`에 구현한다.
     - `"linear"` → `base_lr * world_size`
     - `"sqrt"` → `base_lr * math.sqrt(world_size)`
     - `"none"` → `base_lr` 그대로 반환
@@ -30,8 +30,8 @@
     - `test_trainer_config_defaults`로 기본값 확인
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
 
-- [ ] 3. `_get_raw_model` 헬퍼 함수 구현 및 검증
-  - [ ] 3.1 `_get_raw_model(model, is_ddp)` 함수를 `grinvi/trainer.py`에 구현한다.
+- [x] 3. `_get_raw_model` 헬퍼 함수 구현 및 검증
+  - [x] 3.1 `_get_raw_model(model, is_ddp)` 함수를 `grinvi/trainer.py`에 구현한다.
     - `is_ddp=True`이면 `model.module` 반환, `False`이면 `model` 반환
     - 반환 타입은 항상 `GrinViModel`
     - _Requirements: 2.2, 5.2, 5.3_
@@ -45,41 +45,41 @@
     - `test_get_raw_model_ddp`, `test_get_raw_model_single` 케이스
     - _Requirements: 2.2, 5.2, 5.3_
 
-- [ ] 4. `Trainer.__init__`에 DDP 초기화 로직 추가
-  - [ ] 4.1 `_setup_distributed()` 메서드를 구현한다.
+- [x] 4. `Trainer.__init__`에 DDP 초기화 로직 추가
+  - [x] 4.1 `_setup_distributed()` 메서드를 구현한다.
     - `RANK` 환경변수 존재 여부로 DDP 모드 자동 감지
     - DDP 모드: `dist.init_process_group(backend="nccl")` 호출, `rank`, `local_rank` 반환
     - 단일 GPU 모드: 초기화 건너뜀, `(False, 0, 0)` 반환
     - DDP 초기화 실패 시 `sys.exit(1)` 호출
     - _Requirements: 1.1, 1.2, 1.3, 9.3_
 
-  - [ ] 4.2 `Trainer.__init__`에서 모델 래핑 순서를 구현한다.
+  - [x] 4.2 `Trainer.__init__`에서 모델 래핑 순서를 구현한다.
     - 순서: `model.to(device)` → `enable_gradient_checkpointing()` (선택) → `DDP(model, device_ids=[local_rank])` → `torch.compile()` (선택)
     - `is_ddp`, `rank`, `local_rank` 인스턴스 변수 설정
     - _Requirements: 1.3, 2.1, 2.3, 2.4_
 
-  - [ ] 4.3 `_compute_effective_lr`를 `Trainer.__init__`에 연결하여 optimizer 생성 시 스케일링된 LR을 적용한다.
+  - [x] 4.3 `_compute_effective_lr`를 `Trainer.__init__`에 연결하여 optimizer 생성 시 스케일링된 LR을 적용한다.
     - 시작 시 rank 0에서 `world_size`, GPU 모델명, 총 파라미터 수, `scale_lr` 모드, `global_batch_size`를 출력한다.
     - _Requirements: 4.3, 4.4, 4.5, 4.6, 6.4_
 
-- [ ] 5. 학습 루프에 `no_sync()` 최적화 및 로깅 제어 적용
-  - [ ] 5.1 gradient accumulation 중간 스텝에 `model.no_sync()` 컨텍스트 매니저를 적용한다.
+- [x] 5. 학습 루프에 `no_sync()` 최적화 및 로깅 제어 적용
+  - [x] 5.1 gradient accumulation 중간 스텝에 `model.no_sync()` 컨텍스트 매니저를 적용한다.
     - 마지막 accumulation 스텝(`(step + 1) % grad_accum == 0`)에서만 정상 backward 수행
     - 단일 GPU 모드에서는 `contextlib.nullcontext()` 사용
     - _Requirements: 10.1, 10.2, 10.3_
 
-  - [ ] 5.2 로그 출력을 rank 0 전용으로 제한한다.
+  - [x] 5.2 로그 출력을 rank 0 전용으로 제한한다.
     - `console.print()`, `print()` 호출을 `if self.rank == 0:` 조건으로 감싼다.
     - `rank != 0`에서는 Rich Progress 바를 생성하지 않는다.
     - _Requirements: 6.1, 6.2_
 
-- [ ] 6. eval 루프에 `all_reduce` 집계 추가
+- [x] 6. eval 루프에 `all_reduce` 집계 추가
   - `_eval()` 메서드에서 모든 rank의 eval loss를 `dist.all_reduce(op=ReduceOp.AVG)`로 집계한다.
   - 결과 출력은 rank 0에서만 수행한다.
   - 단일 GPU 모드에서는 기존 동작 유지.
   - _Requirements: 6.3_
 
-- [ ] 7. 체크포인트 저장을 rank 0 전용으로 수정
+- [x] 7. 체크포인트 저장을 rank 0 전용으로 수정
   - `_save()` 및 `_save_best()` 메서드에 `if self.rank != 0: return` 가드를 추가한다.
   - DDP 모드에서 `_get_raw_model().save_pretrained()`를 호출하여 DDP 래퍼 없이 저장한다.
   - 저장 완료 후 `dist.barrier()`로 모든 rank를 동기화한다.
@@ -96,7 +96,7 @@
     - `test_checkpoint_roundtrip`: 단일 GPU 저장 후 로드 파라미터 동등성 확인
     - _Requirements: 5.2, 5.3, 8.3_
 
-- [ ] 9. 에러 처리 및 `destroy_process_group` 정리 로직 구현
+- [x] 9. 에러 처리 및 `destroy_process_group` 정리 로직 구현
   - `Trainer.train()`에 `try/except RuntimeError/finally` 블록을 추가한다.
   - `finally` 블록에서 `is_ddp`일 때 `dist.destroy_process_group()` 항상 호출.
   - `RuntimeError` 발생 시 rank 0에서 에러 로그 출력 후 예외를 상위로 전파.
@@ -107,32 +107,32 @@
   - `pytest tests/test_multi_gpu_training.py -v`를 실행하여 단위 테스트 및 속성 기반 테스트 통과 확인.
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 11. `scripts/train.py` DDP 지원 추가
-  - [ ] 11.1 `RANK` 환경변수로 DDP 여부를 감지하고 `device`, `world_size`를 결정하는 로직을 추가한다.
+- [x] 11. `scripts/train.py` DDP 지원 추가
+  - [x] 11.1 `RANK` 환경변수로 DDP 여부를 감지하고 `device`, `world_size`를 결정하는 로직을 추가한다.
     - DDP 모드: `device = f"cuda:{local_rank}"`, `--device` 인수 무시
     - 단일 GPU 모드: 기존 `args.device` 또는 자동 감지 유지
     - _Requirements: 7.1, 7.2, 7.3, 7.4_
 
-  - [ ] 11.2 DDP 모드에서 `DistributedSampler`를 사용하는 DataLoader를 생성한다.
+  - [x] 11.2 DDP 모드에서 `DistributedSampler`를 사용하는 DataLoader를 생성한다.
     - `DistributedSampler(train_ds, shuffle=True)` 사용, DataLoader의 `shuffle=False`로 설정
     - `drop_last=True`, `pin_memory=True`, `persistent_workers=True` 적용
     - 단일 GPU 모드에서는 기존 `shuffle=True` DataLoader 유지
     - _Requirements: 3.1, 3.2, 3.4_
 
-  - [ ] 11.3 eval interval마다 `DistributedSampler.set_epoch(global_step // steps_per_epoch)`을 호출하는 로직을 추가한다.
+  - [x] 11.3 eval interval마다 `DistributedSampler.set_epoch(global_step // steps_per_epoch)`을 호출하는 로직을 추가한다.
     - _Requirements: 3.3_
 
-  - [ ] 11.4 `--scale_lr {linear,sqrt,none}` CLI 인수를 추가하고 `TrainerConfig`에 전달한다.
+  - [x] 11.4 `--scale_lr {linear,sqrt,none}` CLI 인수를 추가하고 `TrainerConfig`에 전달한다.
     - `TrainerConfig(world_size=world_size, scale_lr=args.scale_lr)` 생성
     - _Requirements: 4.1, 4.2, 7.1, 7.2_
 
-- [ ] 12. Mixed Precision(AMP)과 DDP 호환성 확인
+- [x] 12. Mixed Precision(AMP)과 DDP 호환성 확인
   - `dtype="bfloat16"` 시 `GradScaler`를 사용하지 않는 기존 로직이 DDP 환경에서도 유지되는지 확인한다.
   - `dtype="float16"` 시 각 rank에서 독립적인 `GradScaler` 인스턴스가 생성되는지 확인한다.
   - `GradScaler` 상태를 체크포인트에 저장하지 않는 기존 동작을 유지한다.
   - _Requirements: 11.1, 11.2, 11.3, 11.4_
 
-- [ ] 13. 체크포인트 재개(Resume) DDP 호환성 확인
+- [x] 13. 체크포인트 재개(Resume) DDP 호환성 확인
   - `--resume` 인수로 지정된 체크포인트를 모든 rank에서 동일하게 로드하는 로직을 확인한다.
   - `GrinViModel.from_pretrained()`로 단일 GPU 체크포인트를 추가 변환 없이 로드할 수 있는지 확인한다.
   - _Requirements: 8.1, 8.2, 8.3_
