@@ -36,7 +36,7 @@ echo "🔤 Step 1: Training Korean tokenizer..."
 python scripts/train_tokenizer.py \
     --data data/korean_sample.txt \
     --output data/korean_tok \
-    --vocab_size 8000 \
+    --vocab_size 64000 \
     --character_coverage 0.9995 \
     --test "안녕하세요"
 

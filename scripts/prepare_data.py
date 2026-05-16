@@ -191,7 +191,7 @@ def prepare_ko_wikipedia(out_path: Path, max_tokens: int | None = None):
     GrinViTokenizerSP.train(
         str(train_txt),
         output_prefix=str(out_path / "ko_tokenizer"),
-        vocab_size=8000,
+        vocab_size=64000,
         character_coverage=0.9995,
         model_type="bpe",
     )

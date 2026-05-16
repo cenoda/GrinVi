@@ -12,7 +12,7 @@ from typing import Optional
 @dataclass
 class GrinViConfig:
     # ---------- Model dimensions ----------
-    vocab_size: int = 32000          # size of the vocabulary
+    vocab_size: int = 64000          # size of the vocabulary
     hidden_size: int = 768           # embedding dimension (d_model)
     intermediate_size: int = 2048    # FFN inner dimension (SwiGLU gate proj)
     num_hidden_layers: int = 12      # number of transformer layers
@@ -52,7 +52,7 @@ class GrinViConfig:
     def tiny(cls) -> "GrinViConfig":
         """~15 M parameter model for quick experiments."""
         return cls(
-            vocab_size=32000,
+            vocab_size=64000,
             hidden_size=256,
             intermediate_size=512,
             num_hidden_layers=4,
@@ -65,7 +65,7 @@ class GrinViConfig:
     def small(cls) -> "GrinViConfig":
         """~117 M parameter model."""
         return cls(
-            vocab_size=32000,
+            vocab_size=64000,
             hidden_size=768,
             intermediate_size=2048,
             num_hidden_layers=12,
@@ -78,7 +78,7 @@ class GrinViConfig:
     def medium(cls) -> "GrinViConfig":
         """~345 M parameter model."""
         return cls(
-            vocab_size=32000,
+            vocab_size=64000,
             hidden_size=1024,
             intermediate_size=4096,
             num_hidden_layers=24,
@@ -91,7 +91,7 @@ class GrinViConfig:
     def large(cls) -> "GrinViConfig":
         """~760 M parameter model."""
         return cls(
-            vocab_size=32000,
+            vocab_size=64000,
             hidden_size=1536,
             intermediate_size=6144,
             num_hidden_layers=24,

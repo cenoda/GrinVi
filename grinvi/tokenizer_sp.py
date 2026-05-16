@@ -12,7 +12,7 @@ Example usage:
     tok = GrinViTokenizerSP.from_pretrained("kyujinpy/KoAlpaca-KoTokenizer")
 
     # Or train your own on Korean text
-    tok = GrinViTokenizerSP.train("data/korean_corpus.txt", vocab_size=32000)
+    tok = GrinViTokenizerSP.train("data/korean_corpus.txt", vocab_size=64000)
     tok.save("my_korean_tokenizer.model")
 """
 from __future__ import annotations
@@ -121,7 +121,7 @@ class GrinViTokenizerSP:
         cls,
         texts: Union[str, List[str]],
         output_prefix: str = "grinvi_sp",
-        vocab_size: int = 32000,
+        vocab_size: int = 64000,
         character_coverage: float = 0.9995,
         model_type: str = "bpe",  # or "unigram", "char", "word"
     ) -> "GrinViTokenizerSP":

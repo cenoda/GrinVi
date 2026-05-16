@@ -7,7 +7,7 @@ Examples:
   python scripts/train_tokenizer.py \
       --data data/korean_corpus.txt \
       --output grinvi_korean \
-      --vocab_size 32000
+    --vocab_size 64000
 
   # Train and verify:
   python scripts/train_tokenizer.py \
@@ -30,7 +30,7 @@ def parse_args():
     p = argparse.ArgumentParser(description="Train a SentencePiece tokenizer for GrinVi")
     p.add_argument("--data", required=True, help="Path to training text file")
     p.add_argument("--output", default="grinvi_tok", help="Output model prefix (will create .model and .vocab)")
-    p.add_argument("--vocab_size", type=int, default=32000, help="Vocabulary size")
+    p.add_argument("--vocab_size", type=int, default=64000, help="Vocabulary size")
     p.add_argument("--model_type", choices=["bpe", "unigram", "char", "word"], default="bpe")
     p.add_argument("--character_coverage", type=float, default=0.9995,
                    help="Character coverage (0.9995 recommended for CJK)")
