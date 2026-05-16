@@ -3,8 +3,8 @@
 # 사용법: bash scripts/backup_checkpoints.sh &
 
 WORKSPACE="${1:-/workspace/GrinVi}"
-CKPT_DIR="$WORKSPACE/checkpoints"
-GDRIVE_DEST="gdrive:GrinVi/checkpoints"
+CKPT_DIR="$WORKSPACE/checkpoints_medium"
+GDRIVE_DEST="gdrive:GrinVi/checkpoints_medium"
 INTERVAL=60  # 체크 주기 (초)
 
 echo "[backup] 시작 — $CKPT_DIR → $GDRIVE_DEST"
