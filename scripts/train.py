@@ -51,11 +51,23 @@ class TextDataset(IterableDataset):
         buf = []
         with open(self.path, "r", encoding="utf-8", errors="ignore") as f:
             if worker_info is not None:
-                # 워커마다 다른 라인을 건너뛰게 함
-                skip = (worker_info.id * 10000) % 500000
-                for _ in range(skip):
+                # 워커마다 다른 부분을 읽도록 파일을 분할합니다.
+                # 총 라인수를 알기 어려우므로 바이트 오프셋 기준으로 크게 뜁니다.
+                # 예: 최대 25GB 파일이면 워커/노드별로 충분히 멀리 띄워줍니다.
+                import os
+                file_size = os.path.getsize(self.path)
+                worker_id = worker_info.id
+                num_workers = worker_info.num_workers
+                
+                # 시작 오프셋 계산
+                chunk_size = file_size // num_workers
+                start_offset = worker_id * chunk_size
+                
+                if start_offset > 0:
+                    f.seek(start_offset)
+                    # 첫 줄은 잘렸을 확률이 높으니 버립니다.
                     f.readline()
-
+                
             for line in f:
                 line = line.strip()
                 if not line:
@@ -206,7 +218,7 @@ def main():
             train_ds,
             batch_size=args.batch_size,
             collate_fn=collate_fn,
-            num_workers=2,
+            num_workers=16,
             pin_memory=True,
             persistent_workers=True,
             drop_last=True,
@@ -217,7 +229,7 @@ def main():
             train_ds,
             batch_size=args.batch_size,
             collate_fn=collate_fn,
-            num_workers=2,
+            num_workers=16,
             pin_memory=True,
             persistent_workers=True,
             drop_last=True,
