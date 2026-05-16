@@ -14,8 +14,8 @@ Usage
   # Fast first run (TinyStories — English):
   python scripts/prepare_data.py --dataset tinystories --out data/
 
-  # Korean data:
-  python scripts/prepare_data.py --dataset ko_wikipedia --out data/
+    # Korean data:
+    python scripts/prepare_data.py --dataset ko_wikipedia --out data/raw/
 
   # Or use custom Korean text file you have:
   echo "안녕하세요 반갑습니다" > data/korean_sample.txt

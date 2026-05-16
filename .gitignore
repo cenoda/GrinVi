@@ -1,6 +1,8 @@
 # Environment
 .env
 .env.local
+.env.*
+!.env.example
 
 # Python
 __pycache__/
@@ -16,7 +18,8 @@ checkpoints/
 
 # Data (large files - not tracked in git)
 data/raw/
-data/processed/train.txt
+data/processed/
+data/generated/
 
 # IDE
 .idea/

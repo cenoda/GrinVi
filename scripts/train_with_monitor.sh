@@ -39,9 +39,9 @@ sleep 3
 python scripts/train.py \
   --preset "$PRESET" \
   --tokenizer sentencepiece \
-  --tokenizer_model data/ko_wikipedia/ko_tokenizer.model \
-  --data data/ko_wikipedia/train.txt \
-  --eval_data data/ko_wikipedia/val.txt \
+  --tokenizer_model data/raw/ko_wikipedia/ko_tokenizer.model \
+  --data data/raw/ko_wikipedia/train.txt \
+  --eval_data data/raw/ko_wikipedia/val.txt \
   --max_steps "$MAX_STEPS" \
   --grad_ckpt 2>&1 | tee "$LOG_FILE" &
 
