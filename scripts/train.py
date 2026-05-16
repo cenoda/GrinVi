@@ -122,10 +122,10 @@ def parse_args():
     p.add_argument("--dtype", choices=["float32", "float16", "bfloat16"], default="bfloat16")
     p.add_argument("--compile", action="store_true", help="torch.compile the model (faster after warmup)")
     p.add_argument("--grad_ckpt", action="store_true", help="Gradient checkpointing (saves ~35%% VRAM)")
-    p.add_argument("--tokenizer", choices=["cl100k_base", "sentencepiece"], default="cl100k_base",
-                   help="cl100k_base for English, sentencepiece for Korean/multilingual")
+    p.add_argument("--tokenizer", choices=["cl100k_base", "sentencepiece", "morph"], default="cl100k_base",
+                   help="cl100k_base for English, sentencepiece or morph for Korean/multilingual")
     p.add_argument("--tokenizer_model", default=None, type=str,
-                   help="Path to SentencePiece .model file (required if --tokenizer sentencepiece)")
+                   help="Path to tokenizer model file (required if --tokenizer sentencepiece or morph)")
     p.add_argument("--resume", default=None, type=str, help="Path to checkpoint to resume from")
     p.add_argument("--keep_last_n", type=int, default=5,
                    help="보관할 최근 체크포인트 수 (0 = 무제한)")
@@ -158,6 +158,12 @@ def main():
             sys.exit(1)
         from grinvi.tokenizer_sp import GrinViTokenizerSP
         tokenizer = GrinViTokenizerSP(args.tokenizer_model)
+    elif args.tokenizer == "morph":
+        if not args.tokenizer_model:
+            print("[ERROR] --tokenizer morph requires --tokenizer_model <path_to.json>")
+            sys.exit(1)
+        from grinvi.tokenizer_morph import GrinViMorphTokenizer
+        tokenizer = GrinViMorphTokenizer(args.tokenizer_model)
     else:
         raise ValueError(f"Unknown tokenizer: {args.tokenizer}")
 

@@ -905,8 +905,8 @@ def main() -> None:
     
     print(f"\n🎓 Train GrinVi:")
     print(f"   python scripts/train.py --preset tiny \\")
-    print(f"       --tokenizer sentencepiece \\")
-    print(f"       --tokenizer_model data/raw/ko_wikipedia/ko_tokenizer.model \\")
+    print(f"       --tokenizer morph \\")
+    print(f"       --tokenizer_model data/raw/ko_wikipedia/ko_tokenizer.json \\")
     print(f"       --data data/processed/train.txt \\")
     print(f"       --max_steps 100000000 --grad_ckpt")
 

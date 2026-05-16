@@ -1,5 +1,5 @@
 """
-scripts/train_tokenizer.py — Train a custom SentencePiece tokenizer for Korean/CJK languages.
+scripts/train_tokenizer.py — Train a tokenizer for Korean/CJK languages.
 
 Examples:
 
@@ -23,17 +23,21 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from grinvi.tokenizer_morph import GrinViMorphTokenizer
 from grinvi.tokenizer_sp import GrinViTokenizerSP
 
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Train a SentencePiece tokenizer for GrinVi")
+    p = argparse.ArgumentParser(description="Train a tokenizer for GrinVi")
     p.add_argument("--data", required=True, help="Path to training text file")
-    p.add_argument("--output", default="grinvi_tok", help="Output model prefix (will create .model and .vocab)")
+    p.add_argument("--output", default="grinvi_tok", help="Output model prefix")
+    p.add_argument("--tokenizer_type", choices=["morph", "sentencepiece"], default="morph",
+                   help="Tokenizer backend to train")
     p.add_argument("--vocab_size", type=int, default=64000, help="Vocabulary size")
     p.add_argument("--model_type", choices=["bpe", "unigram", "char", "word"], default="bpe")
     p.add_argument("--character_coverage", type=float, default=0.9995,
                    help="Character coverage (0.9995 recommended for CJK)")
+    p.add_argument("--no_pos", action="store_true", help="For morph tokenizer, store surface forms without POS tags")
     p.add_argument("--test", default=None, help="Test string to tokenize after training")
     return p.parse_args()
 
@@ -41,16 +45,26 @@ def parse_args():
 def main():
     args = parse_args()
 
-    # Train tokenizer on the data file
-    tok = GrinViTokenizerSP.train(
-        args.data,
-        output_prefix=args.output,
-        vocab_size=args.vocab_size,
-        character_coverage=args.character_coverage,
-        model_type=args.model_type,
-    )
+    if args.tokenizer_type == "sentencepiece":
+        tok = GrinViTokenizerSP.train(
+            args.data,
+            output_prefix=args.output,
+            vocab_size=args.vocab_size,
+            character_coverage=args.character_coverage,
+            model_type=args.model_type,
+        )
+        model_path = f"{args.output}.model"
+    else:
+        tok = GrinViMorphTokenizer.train(
+            args.data,
+            output_prefix=args.output,
+            vocab_size=args.vocab_size,
+            include_pos=not args.no_pos,
+        )
+        model_path = f"{args.output}.json"
 
     print(f"\nTokenizer stats:")
+    print(f"  Type: {args.tokenizer_type}")
     print(f"  Vocab size: {tok.vocab_size}")
 
     # Test if requested
@@ -66,8 +80,8 @@ def main():
     print(f"  Use in training with:")
     print(f"    python scripts/train.py \\")
     print(f"        --preset small \\")
-    print(f"        --tokenizer sentencepiece \\")
-    print(f"        --tokenizer_model {args.output}.model \\")
+    print(f"        --tokenizer {args.tokenizer_type} \\")
+    print(f"        --tokenizer_model {model_path} \\")
     print(f"        --data data/korean_train.txt")
 
 

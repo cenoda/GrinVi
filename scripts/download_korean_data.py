@@ -210,8 +210,8 @@ def main():
 
     console.print(f"\n[bold]Then: Train your model[/bold]")
     console.print(f"  python scripts/train.py --preset medium \\")
-    console.print(f"      --tokenizer sentencepiece \\")
-    console.print(f"      --tokenizer_model korean_tok.model \\")
+    console.print(f"      --tokenizer morph \\")
+    console.print(f"      --tokenizer_model korean_tok.json \\")
     console.print(f"      --data {output_file}")
 
 

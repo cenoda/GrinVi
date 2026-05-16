@@ -89,8 +89,8 @@ echo "Backup PID: $!"
 echo "Starting training..."
 nohup python scripts/train.py \
     --preset medium \
-    --tokenizer sentencepiece \
-    --tokenizer_model data/raw/ko_wikipedia/ko_tokenizer.model \
+    --tokenizer morph \
+    --tokenizer_model data/raw/ko_wikipedia/ko_tokenizer.json \
     --data data/processed/train.txt \
     --seq_len 512 \
     --batch_size 128 \

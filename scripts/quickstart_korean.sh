@@ -36,6 +36,7 @@ echo "🔤 Step 1: Training Korean tokenizer..."
 python scripts/train_tokenizer.py \
     --data data/korean_sample.txt \
     --output data/korean_tok \
+    --tokenizer_type morph \
     --vocab_size 64000 \
     --character_coverage 0.9995 \
     --test "안녕하세요"
@@ -45,8 +46,8 @@ echo ""
 echo "🤖 Step 2: Training GrinVi model with Korean data..."
 python scripts/train.py \
     --preset tiny \
-    --tokenizer sentencepiece \
-    --tokenizer_model data/korean_tok.model \
+    --tokenizer morph \
+    --tokenizer_model data/korean_tok.json \
     --data data/korean_sample.txt \
     --seq_len 256 \
     --batch_size 4 \

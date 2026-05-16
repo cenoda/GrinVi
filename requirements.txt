@@ -2,6 +2,7 @@ torch>=2.2.0
 numpy>=1.26.0
 tiktoken>=0.7.0
 sentencepiece>=0.2.0
+kiwipiepy>=0.18.0
 datasets>=2.18.0
 tqdm>=4.66.0
 rich>=13.7.0

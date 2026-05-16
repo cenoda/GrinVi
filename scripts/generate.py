@@ -31,14 +31,14 @@ def parse_args():
     p.add_argument("--prompt", default=None, type=str, help="Prompt string (omit for interactive mode)")
     p.add_argument(
         "--tokenizer",
-        choices=["cl100k_base", "sentencepiece"],
+        choices=["cl100k_base", "sentencepiece", "morph"],
         default="cl100k_base",
-        help="Tokenizer used for the checkpoint (use sentencepiece for Korean checkpoints)",
+        help="Tokenizer used for the checkpoint (use morph for Korean checkpoints)",
     )
     p.add_argument(
         "--tokenizer_model",
         default=None,
-        help="Path to the SentencePiece .model file (required when --tokenizer sentencepiece)",
+        help="Path to the tokenizer model file (required when --tokenizer sentencepiece or morph)",
     )
     p.add_argument("--max_new_tokens", type=int, default=200)
     p.add_argument("--temperature", type=float, default=0.8)
@@ -63,6 +63,12 @@ def main():
         from grinvi.tokenizer_sp import GrinViTokenizerSP
 
         tokenizer = GrinViTokenizerSP(args.tokenizer_model)
+    elif args.tokenizer == "morph":
+        if not args.tokenizer_model:
+            raise SystemExit("--tokenizer_model is required when --tokenizer morph")
+        from grinvi.tokenizer_morph import GrinViMorphTokenizer
+
+        tokenizer = GrinViMorphTokenizer(args.tokenizer_model)
     else:
         tokenizer = GrinViTokenizer()
     gen = Generator(model, tokenizer, device=device)

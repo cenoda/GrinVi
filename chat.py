@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import torch
 from grinvi.model import GrinViModel
-from grinvi.tokenizer_sp import GrinViTokenizerSP
+from grinvi.tokenizer_morph import GrinViMorphTokenizer
 from grinvi.generate import Generator
 from rich.console import Console
 from rich.panel import Panel
@@ -60,7 +60,7 @@ def main():
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     console.print("[yellow]Loading tokenizer...[/yellow]")
-    tokenizer = GrinViTokenizerSP("data/raw/ko_wikipedia/ko_tokenizer.model")
+    tokenizer = GrinViMorphTokenizer("data/raw/ko_wikipedia/ko_tokenizer.json")
 
     console.print("[yellow]Loading model...[/yellow]")
     model = GrinViModel.from_pretrained(str(ckpt_path))

@@ -38,8 +38,8 @@ sleep 3
 # Start training in background
 python scripts/train.py \
   --preset "$PRESET" \
-  --tokenizer sentencepiece \
-  --tokenizer_model data/raw/ko_wikipedia/ko_tokenizer.model \
+  --tokenizer morph \
+  --tokenizer_model data/raw/ko_wikipedia/ko_tokenizer.json \
   --data data/raw/ko_wikipedia/train.txt \
   --eval_data data/raw/ko_wikipedia/val.txt \
   --max_steps "$MAX_STEPS" \

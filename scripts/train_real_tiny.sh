@@ -16,7 +16,7 @@ python scripts/prepare_data.py --dataset ko_wikipedia --out data/raw/ --max_toke
 
 DATA_FILE="data/raw/ko_wikipedia/train.txt"
 VAL_FILE="data/raw/ko_wikipedia/val.txt"
-TOKENIZER_MODEL="data/raw/ko_wikipedia/ko_tokenizer.model"
+TOKENIZER_MODEL="data/raw/ko_wikipedia/ko_tokenizer.json"
 
 echo "✓ Data ready!"
 echo "  Train: $(du -h $DATA_FILE | cut -f1)"
@@ -35,7 +35,7 @@ echo "Time: ~30-60 minutes for 5000 steps"
 echo ""
 python scripts/train.py \
     --preset tiny \
-    --tokenizer sentencepiece \
+    --tokenizer morph \
     --tokenizer_model "$TOKENIZER_MODEL" \
     --data "$DATA_FILE" \
     --eval_data "$VAL_FILE" \

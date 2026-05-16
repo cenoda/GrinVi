@@ -179,7 +179,7 @@ def prepare_ko_wikipedia(out_path: Path, max_tokens: int | None = None):
     """Korean Wikipedia — 한국어 위키백과"""
     print("[GrinVi] Downloading Korean Wikipedia …")
     ds = load_dataset("wikimedia/wikipedia", "20231101.ko", split="train")
-    from grinvi.tokenizer_sp import GrinViTokenizerSP
+    from grinvi.tokenizer_morph import GrinViMorphTokenizer
 
     split = ds.train_test_split(test_size=0.02, seed=42)
     train_texts = split["train"]["text"]
@@ -188,15 +188,13 @@ def prepare_ko_wikipedia(out_path: Path, max_tokens: int | None = None):
     train_txt = write_text_corpus(train_texts, out_path, "train", max_items=max_tokens)
     write_text_corpus(val_texts, out_path, "val", max_items=max_tokens // 20 if max_tokens else None)
 
-    GrinViTokenizerSP.train(
+    GrinViMorphTokenizer.train(
         str(train_txt),
         output_prefix=str(out_path / "ko_tokenizer"),
         vocab_size=64000,
-        character_coverage=0.9995,
-        model_type="bpe",
     )
 
-    print(f"[GrinVi] Korean tokenizer ready: {out_path / 'ko_tokenizer.model'}")
+    print(f"[GrinVi] Korean tokenizer ready: {out_path / 'ko_tokenizer.json'}")
 
 
 # ---------------------------------------------------------------------------
@@ -268,8 +266,8 @@ def main():
         print(f"\n  For Korean training, also use a Korean tokenizer:")
         print(f"    python scripts/train.py \\")
         print(f"        --preset small \\")
-        print(f"        --tokenizer sentencepiece \\")
-        print(f"        --tokenizer_model {out}/ko_tokenizer.model \\")
+        print(f"        --tokenizer morph \\")
+        print(f"        --tokenizer_model {out}/ko_tokenizer.json \\")
         print(f"        --data {out}/train.txt")
 
 
