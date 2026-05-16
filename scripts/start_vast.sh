@@ -77,8 +77,16 @@ else
     echo "No medium checkpoint found, starting from scratch."
 fi
 
-# 7. GPU 확인
+# 7. GPU 확인 및 DDP 설정
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
+NUM_GPUS=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
+if [ "$NUM_GPUS" -gt 1 ]; then
+    echo "Multiple GPUs detected ($NUM_GPUS). Using torchrun for DDP."
+    LAUNCH_CMD="torchrun --nproc_per_node=$NUM_GPUS"
+else
+    echo "Single GPU detected. Using python."
+    LAUNCH_CMD="python"
+fi
 
 # 8. 백업 프로세스 시작
 echo "Starting checkpoint backup daemon..."
@@ -87,7 +95,7 @@ echo "Backup PID: $!"
 
 # 9. 학습 시작
 echo "Starting training..."
-nohup python scripts/train.py \
+nohup $LAUNCH_CMD scripts/train.py \
     --preset medium \
     --tokenizer morph \
     --tokenizer_model data/raw/ko_wikipedia/ko_tokenizer.json \

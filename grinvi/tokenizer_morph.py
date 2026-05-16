@@ -48,6 +48,17 @@ class GrinViMorphTokenizer:
 
         self.kiwi = Kiwi()
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        if "kiwi" in state:
+            del state["kiwi"]
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        from kiwipiepy import Kiwi
+        self.kiwi = Kiwi()
+
     @property
     def vocab_size(self) -> int:
         return len(self.id_to_token)

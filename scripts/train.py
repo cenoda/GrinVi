@@ -33,45 +33,53 @@ from grinvi.trainer import Trainer, TrainerConfig
 # Simple text-file dataset
 # ---------------------------------------------------------------------------
 
-class TextDataset(Dataset):
+from torch.utils.data import IterableDataset
+
+class TextDataset(IterableDataset):
     """
-    Streaming text-file dataset — 파일을 줄 단위로 읽어 메모리 효율적으로 처리.
-    전체 파일을 메모리에 올리지 않고 토큰 버퍼를 채워가며 윈도우를 반환한다.
+    Streaming text-file dataset — 25GB 같은 초대용량 텍스트를 실시간으로 읽기 위해 IterableDataset으로 변경합니다.
     """
-    def __init__(self, path: str, tokenizer, seq_len: int = 512,
-                 max_lines: int | None = None):
+    def __init__(self, path: str, tokenizer, seq_len: int = 512):
         self.seq_len = seq_len
         self.tokenizer = tokenizer
         self.path = path
-        self.max_lines = max_lines
 
-        # 토큰 버퍼를 미리 채운다 (최대 50M 토큰 = ~200MB)
-        MAX_TOKENS = 50_000_000
-        buf: list[int] = []
-        with open(path, "r", encoding="utf-8", errors="ignore") as f:
-            for i, line in enumerate(f):
-                if max_lines and i >= max_lines:
-                    break
+    def __iter__(self):
+        worker_info = torch.utils.data.get_worker_info()
+        # 멀티프로세싱 워커가 여러개일 경우 각자 다른 파일 위치부터 읽게 처리하면 좋지만,
+        # 여기서는 단순화를 위해 워커가 하나라고 가정하거나 랜덤하게 넘기도록 처리
+        buf = []
+        with open(self.path, "r", encoding="utf-8", errors="ignore") as f:
+            if worker_info is not None:
+                # 워커마다 다른 라인을 건너뛰게 함
+                skip = (worker_info.id * 10000) % 500000
+                for _ in range(skip):
+                    f.readline()
+
+            for line in f:
                 line = line.strip()
                 if not line:
                     continue
-                buf.extend(tokenizer.encode(line, add_bos=False, add_eos=False))
-                buf.append(tokenizer.eos_token_id if hasattr(tokenizer, 'eos_token_id') else 2)
-                if len(buf) >= MAX_TOKENS:
-                    break
+                buf.extend(self.tokenizer.encode(line, add_bos=False, add_eos=False))
+                buf.append(self.tokenizer.eos_token_id if hasattr(self.tokenizer, 'eos_token_id') else 2)
 
-        n = ((len(buf) - 1) // seq_len) * seq_len
-        self.ids = torch.tensor(buf[:n + 1], dtype=torch.long)
-        print(f"[Dataset] {len(self.ids):,} tokens → {len(self):,} samples (seq_len={seq_len})")
+                while len(buf) > self.seq_len * 4: # 약간 여유있게 버퍼링
+                    x = torch.tensor(buf[:self.seq_len], dtype=torch.long)
+                    y = torch.tensor(buf[1:self.seq_len+1], dtype=torch.long)
+                    buf = buf[self.seq_len:]
+                    yield x, y
 
-    def __len__(self):
-        return (len(self.ids) - 1) // self.seq_len
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        if "tokenizer" in state:
+            del state["tokenizer"]
+        return state
 
-    def __getitem__(self, idx):
-        start = idx * self.seq_len
-        x = self.ids[start: start + self.seq_len]
-        y = self.ids[start + 1: start + self.seq_len + 1]
-        return x, y
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        # 형태소 토크나이저 복원
+        from grinvi.tokenizer_morph import GrinViMorphTokenizer
+        self.tokenizer = GrinViMorphTokenizer("data/raw/ko_wikipedia/ko_tokenizer.json")
 
 
 def collate_fn(batch):
@@ -192,14 +200,13 @@ def main():
 
     # Task 11.2: Use DistributedSampler in DDP mode
     if is_ddp:
-        train_sampler = DistributedSampler(train_ds, shuffle=True)
+        # IterableDataset은 DistributedSampler를 직접 물릴 수 없습니다.
+        train_sampler = None
         train_loader = DataLoader(
             train_ds,
             batch_size=args.batch_size,
-            shuffle=False,          # shuffle must be False when using a sampler
-            sampler=train_sampler,
             collate_fn=collate_fn,
-            num_workers=4,
+            num_workers=2,
             pin_memory=True,
             persistent_workers=True,
             drop_last=True,
@@ -209,9 +216,8 @@ def main():
         train_loader = DataLoader(
             train_ds,
             batch_size=args.batch_size,
-            shuffle=True,
             collate_fn=collate_fn,
-            num_workers=4,
+            num_workers=2,
             pin_memory=True,
             persistent_workers=True,
             drop_last=True,
