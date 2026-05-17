@@ -191,7 +191,7 @@ def prepare_ko_wikipedia(out_path: Path, max_tokens: int | None = None):
     GrinViMorphTokenizer.train(
         str(train_txt),
         output_prefix=str(out_path / "ko_tokenizer"),
-        vocab_size=64000,
+        vocab_size=80000,
     )
 
     print(f"[GrinVi] Korean tokenizer ready: {out_path / 'ko_tokenizer.json'}")

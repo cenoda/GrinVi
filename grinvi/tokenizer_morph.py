@@ -23,6 +23,14 @@ class GrinViMorphTokenizer:
     EOS_TOKEN = "<|eos|>"
     UNK_TOKEN = "<|unk|>"
 
+    # Character-level fallback markers. Any morpheme that misses the vocab is
+    # split into single-character pieces of the form ``<c:X>`` (or
+    # ``▁<c:X>`` when at the start of a whitespace-delimited word). This makes
+    # the tokenizer effectively zero-UNK as long as the per-character vocab
+    # covers the alphabet of the input.
+    CHAR_OPEN = "<c:"
+    CHAR_CLOSE = ">"
+
     def __init__(
         self,
         model_path: str,
@@ -82,6 +90,18 @@ class GrinViMorphTokenizer:
                 )
         return pieces
 
+    def _char_piece(self, ch: str, is_word_start: bool) -> str:
+        piece = f"{self.CHAR_OPEN}{ch}{self.CHAR_CLOSE}"
+        return ("▁" + piece) if is_word_start else piece
+
+    def _piece_is_char(self, piece: str) -> bool:
+        body = piece[1:] if piece.startswith("▁") else piece
+        return body.startswith(self.CHAR_OPEN) and body.endswith(self.CHAR_CLOSE)
+
+    def _char_of_piece(self, piece: str) -> str:
+        body = piece[1:] if piece.startswith("▁") else piece
+        return body[len(self.CHAR_OPEN):-len(self.CHAR_CLOSE)]
+
     def encode(
         self,
         text: str,
@@ -89,7 +109,27 @@ class GrinViMorphTokenizer:
         add_eos: bool = True,
     ) -> List[int]:
         pieces = self._tokenize_to_pieces(text)
-        ids = [self.token_to_id.get(piece, self.unk_token_id) for piece in pieces]
+        ids: List[int] = []
+        for piece in pieces:
+            tid = self.token_to_id.get(piece)
+            if tid is not None:
+                ids.append(tid)
+                continue
+            # Character-level fallback: split the surface form into single
+            # characters and look up `<c:X>` pieces. Preserves the `▁`
+            # word-start marker on the first character.
+            is_word_start = piece.startswith("▁")
+            body = piece[1:] if is_word_start else piece
+            if self.include_pos and "/" in body:
+                form, _tag = body.rsplit("/", 1)
+            else:
+                form = body
+            if not form:
+                ids.append(self.unk_token_id)
+                continue
+            for i, ch in enumerate(form):
+                ch_piece = self._char_piece(ch, is_word_start=(i == 0 and is_word_start))
+                ids.append(self.token_to_id.get(ch_piece, self.unk_token_id))
         if add_bos:
             ids = [self.bos_token_id] + ids
         if add_eos:
@@ -103,19 +143,28 @@ class GrinViMorphTokenizer:
             self.eos_token_id,
         }
 
-        words = []
-        current_morphs = []
+        words: List[str] = []
+        current_morphs: List[tuple] = []
+        current_chars: List[str] = []  # raw chars accumulated for the current word
 
         def flush_word():
-            if not current_morphs:
+            """Emit the currently-built word. If any char-level pieces were
+            used, prefer raw concatenation over kiwi.join (kiwi would mangle
+            arbitrary chars). Otherwise reconstruct via kiwi.join."""
+            if not current_morphs and not current_chars:
                 return ""
-            try:
-                # Use kiwi to reconstruct the exact original word from morphemes
-                joined = self.kiwi.join(current_morphs)
-            except Exception:
-                # Fallback
-                joined = "".join(form for form, tag in current_morphs)
+            if current_chars and not current_morphs:
+                joined = "".join(current_chars)
+            elif current_chars and current_morphs:
+                # Mixed (rare): concat chars then morph surface forms.
+                joined = "".join(current_chars) + "".join(f for f, _ in current_morphs)
+            else:
+                try:
+                    joined = self.kiwi.join(current_morphs)
+                except Exception:
+                    joined = "".join(form for form, tag in current_morphs)
             current_morphs.clear()
+            current_chars.clear()
             return joined
 
         for token_id in token_ids:
@@ -131,6 +180,15 @@ class GrinViMorphTokenizer:
                 continue
 
             is_word_start = token.startswith("▁")
+
+            # Character-level piece — append raw char to current word.
+            if self._piece_is_char(token):
+                if is_word_start:
+                    w = flush_word()
+                    if w: words.append(w)
+                current_chars.append(self._char_of_piece(token))
+                continue
+
             surface_token = token[1:] if is_word_start else token
 
             # When a new word starts, flush the previous morphemes
@@ -148,8 +206,6 @@ class GrinViMorphTokenizer:
         w = flush_word()
         if w: words.append(w)
 
-        # Determine spacing. We need to be careful with <unk>.
-        # <unk> conceptually acts as a separate word snippet in this naive concat.
         return " ".join(words)
 
     def batch_encode(
@@ -199,7 +255,18 @@ class GrinViMorphTokenizer:
         output_prefix: str = "grinvi_ko_morph",
         vocab_size: int = 64000,
         include_pos: bool = True,
+        extra_char_top_n: int = 4000,
     ) -> "GrinViMorphTokenizer":
+        """Train a morph tokenizer with character-level fallback.
+
+        The vocabulary is composed of:
+          * 4 special tokens
+          * Korean syllable block (U+AC00..U+D7A3) as ``<c:X>`` and ``▁<c:X>``
+            — always included (22,344 entries) so any Korean text is zero-UNK
+          * Top ``extra_char_top_n`` other characters from the corpus
+            (hanja, latin, punctuation, …) in both forms
+          * Remaining budget filled with the most frequent morpheme pieces
+        """
         try:
             from kiwipiepy import Kiwi
         except ImportError as exc:
@@ -208,7 +275,8 @@ class GrinViMorphTokenizer:
             ) from exc
 
         kiwi = Kiwi()
-        counter: Counter[str] = Counter()
+        morph_counter: Counter[str] = Counter()
+        char_counter: Counter[str] = Counter()
 
         def iter_lines():
             if isinstance(texts, list):
@@ -223,17 +291,26 @@ class GrinViMorphTokenizer:
             text = raw_text.strip()
             if not text:
                 continue
+            # Per-character counts (excluding whitespace and Korean syllables —
+            # those are always included regardless of frequency).
+            for ch in text:
+                if ch.isspace():
+                    continue
+                if 0xAC00 <= ord(ch) <= 0xD7A3:
+                    continue
+                char_counter[ch] += 1
+            # Per-morpheme counts.
             for word in text.split():
                 morphs = kiwi.tokenize(word)
                 if not morphs:
                     piece = ("▁" + word + "/UNK") if include_pos else ("▁" + word)
-                    counter[piece] += 1
+                    morph_counter[piece] += 1
                     continue
                 for index, token in enumerate(morphs):
                     piece = f"{token.form}/{token.tag}" if include_pos else token.form
                     if index == 0:
                         piece = "▁" + piece
-                    counter[piece] += 1
+                    morph_counter[piece] += 1
 
         special_tokens = [
             cls.PAD_TOKEN,
@@ -241,11 +318,45 @@ class GrinViMorphTokenizer:
             cls.EOS_TOKEN,
             cls.UNK_TOKEN,
         ]
-        max_vocab = max(0, vocab_size - len(special_tokens))
+
+        # Character pieces: Korean syllables (always) + ASCII printable (always)
+        # + top-N other chars from the corpus (hanja, full-width punct, …).
+        char_pieces: List[str] = []
+        seen_chars: set = set()
+        def _add_char(ch: str):
+            if ch in seen_chars:
+                return
+            seen_chars.add(ch)
+            char_pieces.append(f"{cls.CHAR_OPEN}{ch}{cls.CHAR_CLOSE}")
+            char_pieces.append(f"▁{cls.CHAR_OPEN}{ch}{cls.CHAR_CLOSE}")
+        # Korean syllables — both word-initial and middle forms.
+        for cp in range(0xAC00, 0xD7A4):
+            _add_char(chr(cp))
+        # ASCII printable (a-z, A-Z, 0-9, punctuation) — always included.
+        import string as _string
+        for ch in _string.printable:
+            if not ch.isspace():
+                _add_char(ch)
+        # Other chars by corpus frequency.
+        extra_added = 0
+        for ch, _cnt in char_counter.most_common():
+            if extra_added >= extra_char_top_n:
+                break
+            if ch in seen_chars:
+                continue
+            _add_char(ch)
+            extra_added += 1
+        # No hard cap — full Korean block + ASCII + extras is the design.
+
+        # Remaining budget for morphemes.
+        max_morph = max(0, vocab_size - len(special_tokens) - len(char_pieces))
         learned_tokens = [
-            token for token, _ in sorted(counter.items(), key=lambda item: (-item[1], item[0]))[:max_vocab]
+            token for token, _ in sorted(morph_counter.items(), key=lambda item: (-item[1], item[0]))[:max_morph]
         ]
-        vocab = special_tokens + learned_tokens
+        # Dedup against char pieces (in case a morph happens to coincide).
+        char_set = set(char_pieces)
+        learned_tokens = [t for t in learned_tokens if t not in char_set]
+        vocab = special_tokens + char_pieces + learned_tokens
 
         model_path = Path(f"{output_prefix}.json")
         model_path.parent.mkdir(parents=True, exist_ok=True)
@@ -266,5 +377,7 @@ class GrinViMorphTokenizer:
         vocab_path.write_text("\n".join(vocab) + "\n", encoding="utf-8")
 
         print(f"[GrinVi] Morph tokenizer saved to {model_path}")
+        print(f"  specials: {len(special_tokens)}, char pieces: {len(char_pieces)}, morphs: {len(learned_tokens)}")
+        print(f"  total vocab: {len(vocab)}  (requested {vocab_size})")
         print(f"[GrinVi] Morph vocab saved to {vocab_path}")
         return cls(str(model_path))
