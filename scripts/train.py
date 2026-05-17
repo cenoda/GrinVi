@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import random
 import sys
 from pathlib import Path
 
@@ -21,7 +22,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import torch
-from torch.utils.data import DataLoader, Dataset, DistributedSampler
+from torch.utils.data import DataLoader, Dataset
 
 from grinvi.config import GrinViConfig
 from grinvi.model import GrinViModel
@@ -46,29 +47,45 @@ class TextDataset(IterableDataset):
 
     def __iter__(self):
         worker_info = torch.utils.data.get_worker_info()
-        # 멀티프로세싱 워커가 여러개일 경우 각자 다른 파일 위치부터 읽게 처리하면 좋지만,
-        # 여기서는 단순화를 위해 워커가 하나라고 가정하거나 랜덤하게 넘기도록 처리
+        num_workers = worker_info.num_workers if worker_info is not None else 1
+        worker_id = worker_info.id if worker_info is not None else 0
+
+        if torch.distributed.is_available() and torch.distributed.is_initialized():
+            world_size = torch.distributed.get_world_size()
+            rank = torch.distributed.get_rank()
+        else:
+            world_size = 1
+            rank = 0
+
+        total_workers = world_size * num_workers
+        global_worker_id = rank * num_workers + worker_id
+
+        file_size = os.path.getsize(self.path)
+        chunk_size = max(1, file_size // total_workers)
+        start_offset = global_worker_id * chunk_size
+        end_offset = file_size if global_worker_id == total_workers - 1 else min(file_size, start_offset + chunk_size)
+
         buf = []
+        shuffle_buffer = []
+        max_shuffle_items = 1024
+        rng = random.Random((global_worker_id + 1) * 1009)
+
         with open(self.path, "r", encoding="utf-8", errors="ignore") as f:
-            if worker_info is not None:
-                # 워커마다 다른 부분을 읽도록 파일을 분할합니다.
-                # 총 라인수를 알기 어려우므로 바이트 오프셋 기준으로 크게 뜁니다.
-                # 예: 최대 25GB 파일이면 워커/노드별로 충분히 멀리 띄워줍니다.
-                import os
-                file_size = os.path.getsize(self.path)
-                worker_id = worker_info.id
-                num_workers = worker_info.num_workers
-                
-                # 시작 오프셋 계산
-                chunk_size = file_size // num_workers
-                start_offset = worker_id * chunk_size
-                
-                if start_offset > 0:
-                    f.seek(start_offset)
-                    # 첫 줄은 잘렸을 확률이 높으니 버립니다.
-                    f.readline()
-                
-            for line in f:
+            if start_offset > 0:
+                f.seek(start_offset)
+                # 청크 시작점에서 잘린 첫 줄은 버립니다.
+                f.readline()
+            else:
+                f.seek(0)
+
+            while True:
+                if f.tell() >= end_offset:
+                    break
+
+                line = f.readline()
+                if not line:
+                    break
+
                 line = line.strip()
                 if not line:
                     continue
@@ -79,7 +96,13 @@ class TextDataset(IterableDataset):
                     x = torch.tensor(buf[:self.seq_len], dtype=torch.long)
                     y = torch.tensor(buf[1:self.seq_len+1], dtype=torch.long)
                     buf = buf[self.seq_len:]
-                    yield x, y
+                    shuffle_buffer.append((x, y))
+
+                    if len(shuffle_buffer) >= max_shuffle_items:
+                        yield shuffle_buffer.pop(rng.randrange(len(shuffle_buffer)))
+
+            while shuffle_buffer:
+                yield shuffle_buffer.pop(rng.randrange(len(shuffle_buffer)))
 
     def __getstate__(self):
         state = self.__dict__.copy()
@@ -269,30 +292,9 @@ def main():
 
     trainer = Trainer(model, tcfg, train_loader, eval_loader)
 
-    # Task 11.3: Track epoch for DistributedSampler.set_epoch
-    # We patch the train_loader iteration to call set_epoch at each eval interval.
-    # The Trainer handles the training loop internally, so we store the sampler
-    # on the trainer for potential use. The set_epoch call is done via a wrapper
-    # approach: we subclass or monkey-patch the loader's __iter__.
-    # Since Trainer iterates train_loader internally, we attach the sampler
-    # so the Trainer can call set_epoch. However, the current Trainer design
-    # doesn't expose epoch hooks. We implement set_epoch by wrapping the loader.
-    if train_sampler is not None:
-        _original_iter = train_loader.__class__.__iter__
+    if args.resume:
+        trainer.load_state(args.resume)
 
-        # Attach sampler reference to trainer for set_epoch calls
-        trainer._train_sampler = train_sampler
-        trainer._sampler_epoch = 0
-
-        # Monkey-patch _eval to call set_epoch before each eval interval
-        _original_eval = trainer._eval
-
-        def _eval_with_set_epoch(step: int):
-            trainer._sampler_epoch += 1
-            train_sampler.set_epoch(trainer._sampler_epoch)
-            return _original_eval(step)
-
-        trainer._eval = _eval_with_set_epoch
 
     trainer.train()
 

@@ -102,22 +102,55 @@ class GrinViMorphTokenizer:
             self.bos_token_id,
             self.eos_token_id,
         }
-        parts: List[str] = []
+
+        words = []
+        current_morphs = []
+
+        def flush_word():
+            if not current_morphs:
+                return ""
+            try:
+                # Use kiwi to reconstruct the exact original word from morphemes
+                joined = self.kiwi.join(current_morphs)
+            except Exception:
+                # Fallback
+                joined = "".join(form for form, tag in current_morphs)
+            current_morphs.clear()
+            return joined
+
         for token_id in token_ids:
             if skip_special_tokens and token_id in special_ids:
                 continue
+
             token = self.id_to_token[token_id] if 0 <= token_id < len(self.id_to_token) else self.UNK_TOKEN
+
             if token == self.UNK_TOKEN:
-                surface = "<unk>"
-                is_word_start = bool(parts)
+                w = flush_word()
+                if w: words.append(w)
+                words.append("<unk>")
+                continue
+
+            is_word_start = token.startswith("▁")
+            surface_token = token[1:] if is_word_start else token
+
+            # When a new word starts, flush the previous morphemes
+            if is_word_start:
+                w = flush_word()
+                if w: words.append(w)
+
+            if self.include_pos and "/" in surface_token:
+                form, tag = surface_token.rsplit("/", 1)
+                current_morphs.append((form, tag))
             else:
-                is_word_start = token.startswith("▁")
-                surface_token = token[1:] if is_word_start else token
-                surface = surface_token.rsplit("/", 1)[0] if self.include_pos and "/" in surface_token else surface_token
-            if is_word_start and parts:
-                parts.append(" ")
-            parts.append(surface)
-        return "".join(parts)
+                current_morphs.append((surface_token, "UNK"))
+
+        # Flush the last word
+        w = flush_word()
+        if w: words.append(w)
+
+        # Determine spacing. We need to be careful with <unk>.
+        # <unk> conceptually acts as a separate word snippet in this naive concat.
+        return " ".join(words)
 
     def batch_encode(
         self,

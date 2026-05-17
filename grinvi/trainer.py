@@ -291,6 +291,29 @@ class Trainer:
         return loss
 
     # ------------------------------------------------------------------
+    def load_state(self, checkpoint_path: str):
+        state_file = Path(checkpoint_path) / "trainer_state.pt"
+        if not state_file.exists():
+            if self.rank == 0:
+                console.print(f"  [yellow]⚠ No trainer_state.pt found in {checkpoint_path}, skipping optimizer recovery.[/yellow]")
+            return
+
+        state = torch.load(str(state_file), map_location="cpu", weights_only=False)
+        self.step = state.get("step", 0)
+
+        if "optimizer" in state:
+            self.optimizer.load_state_dict(state["optimizer"])
+        if "scheduler" in state:
+            self.scheduler.load_state_dict(state["scheduler"])
+        if "scaler" in state and state["scaler"] is not None:
+            try:
+                self.scaler.load_state_dict(state["scaler"])
+            except Exception:
+                pass
+
+        if self.rank == 0:
+            console.print(f"  [green]✓ Optimizer state restored (step {self.step})[/green]")
+
     def train(self):
         # Task 9: Wrap training loop in try/except/finally for DDP cleanup
         try:
@@ -516,6 +539,15 @@ class Trainer:
                 best_dir.mkdir(parents=True, exist_ok=True)
                 # Task 7: Use _get_raw_model to unwrap DDP before saving
                 _get_raw_model(self.model, self.is_ddp).save_pretrained(str(best_dir))
+
+                opt_state = {
+                    "step": self.step,
+                    "optimizer": self.optimizer.state_dict(),
+                    "scheduler": self.scheduler.state_dict(),
+                    "scaler": self.scaler.state_dict() if self.cfg.dtype == "float16" else None,
+                }
+                torch.save(opt_state, str(best_dir / "trainer_state.pt"))
+
                 console.print(f"  [green]★ Best checkpoint saved → {best_dir}  (loss={self.best_eval_loss:.4f})[/green]")
             except Exception as e:
                 console.print(f"  [yellow]⚠ Failed to save best checkpoint: {e}[/yellow]")
@@ -569,6 +601,15 @@ class Trainer:
                 Path(out).parent.mkdir(parents=True, exist_ok=True)
                 # Task 7: Use _get_raw_model to unwrap DDP before saving
                 _get_raw_model(self.model, self.is_ddp).save_pretrained(str(out))
+
+                opt_state = {
+                    "step": self.step,
+                    "optimizer": self.optimizer.state_dict(),
+                    "scheduler": self.scheduler.state_dict(),
+                    "scaler": self.scaler.state_dict() if self.cfg.dtype == "float16" else None,
+                }
+                torch.save(opt_state, str(out / "trainer_state.pt"))
+
                 console.print(f"  [yellow]Checkpoint saved → {out}[/yellow]")
             except Exception as e:
                 console.print(f"  [red]✗ Failed to save checkpoint: {e}[/red]")

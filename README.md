@@ -48,6 +48,20 @@ GrinVi/
 pip install -r requirements.txt
 ```
 
+```### 1.5. Run preflight checks before expensive training
+
+```bash
+python scripts/preflight_train.py \
+    --data data/processed/train.txt \
+    --tokenizer morph \
+    --tokenizer_model data/raw/ko_wikipedia/ko_tokenizer.json
+```
+
+If you are resuming from a checkpoint, include `--resume ...` too.
+
+Detailed failure modes and recovery notes are documented in
+[`TRAINING_RUNBOOK.md`](TRAINING_RUNBOOK.md).
+
 ### 2. Smoke-test training (tiny model, synthetic data)
 
 ```bash
