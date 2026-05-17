@@ -369,6 +369,13 @@ class GrinViMorphTokenizer:
         chunks_done = 0
         bytes_seen = 0
 
+        # Periodic pruning to bound memory. Anything appearing only once (or twice
+        # later) is extremely unlikely to make it into the top vocab_size — Zipf
+        # distribution guarantees the top ~80K all have counts in the thousands.
+        # Pruning every N chunks keeps the Counter from exploding RAM.
+        target_morph_keep = max(vocab_size * 4, 400_000)  # safety margin over final
+        prune_interval = 200  # chunks
+
         ctx = mp.get_context("fork")
         with ctx.Pool(
             processes=num_workers,
@@ -381,15 +388,35 @@ class GrinViMorphTokenizer:
                 morph_counter.update(partial_morph)
                 char_counter.update(partial_char)
                 chunks_done += 1
-                # Estimate bytes processed from the partial counters' total weight.
-                # (Not exact but good enough for ETA.)
                 if chunks_done % 5 == 0:
                     elapsed = time.time() - t0
-                    # Use distinct morphemes accumulated as a rough proxy.
                     print(
                         f"[GrinVi]   chunks={chunks_done} "
                         f"morph_vocab={len(morph_counter):,} "
                         f"elapsed={elapsed:.0f}s",
+                        flush=True,
+                    )
+                # Periodic pruning — only triggered if counter is large enough that
+                # we have a reliable frequency signal. Drops items below a rolling
+                # threshold derived from how oversized the counter is vs the keep target.
+                if (
+                    chunks_done % prune_interval == 0
+                    and len(morph_counter) > target_morph_keep * 2
+                ):
+                    before = len(morph_counter)
+                    # Find the count threshold so we keep ~target_morph_keep items.
+                    counts_sorted = sorted(morph_counter.values(), reverse=True)
+                    if len(counts_sorted) > target_morph_keep:
+                        threshold = counts_sorted[target_morph_keep]
+                        # Keep items with count strictly greater than threshold (and
+                        # equality on the boundary is OK to drop — they're rare).
+                        morph_counter = Counter({
+                            k: v for k, v in morph_counter.items() if v > threshold
+                        })
+                    after = len(morph_counter)
+                    print(
+                        f"[GrinVi]   [prune] {before:,} → {after:,} "
+                        f"(threshold count > {threshold})",
                         flush=True,
                     )
 
