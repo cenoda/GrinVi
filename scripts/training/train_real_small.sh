@@ -15,7 +15,7 @@ fi
 echo "Model: small (12 layers, 768 hidden)"
 echo "Data: 25GB Combined Korean Data"
 echo "Batch: 4 sequences, Grad Accum: 8 (effective 32)"
-python scripts/train.py \
+python scripts/training/train.py \
     --preset small \
     --tokenizer morph \
     --tokenizer_model "$TOKENIZER_MODEL" \

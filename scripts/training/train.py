@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 
 # Make sure the repo root is on the path when running as a script
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 import torch
 from torch.utils.data import DataLoader, Dataset

@@ -139,7 +139,7 @@ def main():
         print("\n" + "="*60)
         print("STEP 1: Preflight Safety Checks")
         print("="*60)
-        preflight_cmd = [sys.executable, "scripts/preflight_train.py", "--data", args.data, "--tokenizer", args.tokenizer]
+        preflight_cmd = [sys.executable, "scripts/training/preflight_train.py", "--data", args.data, "--tokenizer", args.tokenizer]
         if args.tokenizer_model: preflight_cmd += ["--tokenizer_model", args.tokenizer_model]
         if args.eval_data: preflight_cmd += ["--eval_data", args.eval_data]
         if args.resume: preflight_cmd += ["--resume", args.resume]
@@ -159,7 +159,7 @@ def main():
         print(f"STEP 2: Smoke Test ({args.smoke_steps} steps)")
         print("="*60)
         
-        smoke_cmd = get_run_prefix(args.gpus) + ["scripts/train.py"] + base_args
+        smoke_cmd = get_run_prefix(args.gpus) + ["scripts/training/train.py"] + base_args
         smoke_cmd += ["--checkpoint_dir", str(smoke_dir), "--max_steps", str(args.smoke_steps)]
         # Ensure we save/eval at the end of smoke test
         smoke_cmd += ["--save_interval", str(args.smoke_steps), "--eval_interval", str(args.smoke_steps)]
@@ -182,7 +182,7 @@ def main():
             if ckpts: last_ckpt = ckpts[-1]
             
         if last_ckpt.exists() and last_ckpt.is_dir():
-            gen_cmd = [sys.executable, "scripts/generate.py", "--checkpoint", str(last_ckpt), "--tokenizer", args.tokenizer]
+            gen_cmd = [sys.executable, "scripts/tools/inference.py", "--checkpoint", str(last_ckpt), "--tokenizer", args.tokenizer]
             if args.tokenizer_model: gen_cmd += ["--tokenizer_model", args.tokenizer_model]
             gen_cmd += ["--prompt", args.prompt, "--max_new_tokens", "100"]
             run_command(gen_cmd)
@@ -217,12 +217,12 @@ def main():
                 print("[Pipeline] Aborting to prevent accidental overwrite.")
                 sys.exit(0)
 
-    main_cmd = get_run_prefix(args.gpus) + ["scripts/train.py"] + base_args
+    main_cmd = get_run_prefix(args.gpus) + ["scripts/training/train.py"] + base_args
     main_cmd += ["--checkpoint_dir", args.checkpoint_dir, "--max_steps", str(args.max_steps)]
     
     # 6. Start Backup in background if requested
     if args.backup_name:
-        backup_cmd = ["bash", "scripts/backup_checkpoints.sh", args.checkpoint_dir, args.backup_name]
+        backup_cmd = ["bash", "scripts/infra/backup_checkpoints.sh", args.checkpoint_dir, args.backup_name]
         env = os.environ.copy()
         env["INTERVAL"] = str(args.upload_interval)
         run_command(backup_cmd, env=env, background=True)

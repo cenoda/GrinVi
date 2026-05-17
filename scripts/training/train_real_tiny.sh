@@ -33,7 +33,7 @@ echo "Batch: 4 sequences"
 echo "Tokens/sec: ~30k (expected)"
 echo "Time: ~30-60 minutes for 5000 steps"
 echo ""
-python scripts/train.py \
+python scripts/training/train.py \
     --preset tiny \
     --tokenizer morph \
     --tokenizer_model "$TOKENIZER_MODEL" \
@@ -56,8 +56,8 @@ echo ""
 echo "Next: Generate Korean text!"
 echo ""
 echo "Interactive mode:"
-echo "  python scripts/generate.py --checkpoint checkpoints/step-final --tokenizer morph --tokenizer_model \"$TOKENIZER_MODEL\""
+echo "  python scripts/tools/inference.py --checkpoint checkpoints/step-final --tokenizer morph --tokenizer_model \"$TOKENIZER_MODEL\""
 echo ""
 echo "Example:"
-echo "  python scripts/generate.py --checkpoint checkpoints/step-final --prompt '한국은' --tokenizer morph --tokenizer_model \"$TOKENIZER_MODEL\""
+echo "  python scripts/tools/inference.py --checkpoint checkpoints/step-final --prompt '한국은' --tokenizer morph --tokenizer_model \"$TOKENIZER_MODEL\""
 echo ""

@@ -24,7 +24,12 @@ A decoder-only transformer language model built from scratch with **PyTorch**.
 ```
 GrinVi/
 ├── grinvi/             # Core library (Model, Tokenizer, Trainer)
-├── scripts/            # Training, data prep, and utility scripts
+├── scripts/            # Scripts categorized by function:
+│   ├── data/           # Data preparation & download
+│   ├── training/       # Training & pipeline automation
+│   ├── monitoring/     # Diagnostics & performance
+│   ├── infra/          # Vast.ai & cloud infrastructure
+│   └── tools/          # Inference & demo utilities
 ├── tests/              # Unit tests and verification scripts
 ├── logs/               # Training logs and execution history
 ├── docs/               # Additional documentation and history
@@ -58,7 +63,7 @@ pip install -r requirements.txt
 To run preflight checks, a smoke test, and then start the main training run all in one command:
 
 ```bash
-python scripts/train_pipeline.py \
+python scripts/training/train_pipeline.py \
     --data data/processed/train.txt \
     --tokenizer morph \
     --tokenizer_model data/raw/ko_wikipedia/ko_tokenizer.json \
@@ -75,13 +80,13 @@ If you prefer to run steps manually:
 #### 2.1. Smoke-test training (tiny model, synthetic data)
 
 ```bash
-python scripts/train.py --preset tiny --max_steps 500 --batch_size 4
+python scripts/training/train.py --preset tiny --max_steps 500 --batch_size 4
 ```
 
 #### 2.2. Train on your own text
 
 ```bash
-python scripts/train.py \
+python scripts/training/train.py \
     --preset small \
     --data data/train.txt \
     --eval_data data/val.txt \
@@ -95,10 +100,10 @@ python scripts/train.py \
 
 ```bash
 # Interactive REPL
-python scripts/generate.py --checkpoint checkpoints/step-final
+python scripts/tools/inference.py --checkpoint checkpoints/step-final
 
 # Single prompt
-python scripts/generate.py \
+python scripts/tools/inference.py \
     --checkpoint checkpoints/step-final \
     --prompt "Once upon a time" \
     --max_new_tokens 300 \

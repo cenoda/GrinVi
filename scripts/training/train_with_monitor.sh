@@ -36,7 +36,7 @@ sleep 3
 > "$LOG_FILE"
 
 # Start training in background
-python scripts/train.py \
+python scripts/training/train.py \
   --preset "$PRESET" \
   --tokenizer morph \
   --tokenizer_model data/raw/ko_wikipedia/ko_tokenizer.json \
@@ -51,7 +51,7 @@ TRAIN_PID=$!
 sleep 2
 
 # Start advanced monitor
-python scripts/monitor_advanced.py \
+python scripts/monitoring/monitor_advanced.py \
   --log "$LOG_FILE" \
   --max-steps "$MAX_STEPS"
 
