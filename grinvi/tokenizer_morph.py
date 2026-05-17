@@ -15,6 +15,56 @@ from typing import List, Optional, Union
 import torch
 
 
+# ---------------------------------------------------------------------------
+# Module-level helpers for multiprocessing-based training.
+# Workers each hold their own Kiwi instance via a pool initializer.
+# ---------------------------------------------------------------------------
+_WORKER_KIWI = None
+_WORKER_INCLUDE_POS = True
+
+
+def _worker_init(include_pos: bool):
+    global _WORKER_KIWI, _WORKER_INCLUDE_POS
+    from kiwipiepy import Kiwi
+    _WORKER_KIWI = Kiwi()
+    _WORKER_INCLUDE_POS = include_pos
+
+
+def _worker_count_chunk(lines):
+    """Process a batch of raw lines and return (morph_counter, char_counter).
+
+    Uses **per-word** kiwi.tokenize calls — identical algorithm to the
+    single-process implementation so the resulting vocab is deterministic and
+    bit-identical across process counts.
+    """
+    kiwi = _WORKER_KIWI
+    include_pos = _WORKER_INCLUDE_POS
+    morph_counter: Counter = Counter()
+    char_counter: Counter = Counter()
+    for raw_text in lines:
+        text = raw_text.strip()
+        if not text:
+            continue
+        for ch in text:
+            if ch.isspace():
+                continue
+            if 0xAC00 <= ord(ch) <= 0xD7A3:
+                continue
+            char_counter[ch] += 1
+        for word in text.split():
+            morphs = kiwi.tokenize(word)
+            if not morphs:
+                piece = ("▁" + word + "/UNK") if include_pos else ("▁" + word)
+                morph_counter[piece] += 1
+                continue
+            for index, token in enumerate(morphs):
+                piece = f"{token.form}/{token.tag}" if include_pos else token.form
+                if index == 0:
+                    piece = "▁" + piece
+                morph_counter[piece] += 1
+    return morph_counter, char_counter
+
+
 class GrinViMorphTokenizer:
     """Kiwi-based morphology tokenizer for Korean text."""
 
@@ -256,61 +306,96 @@ class GrinViMorphTokenizer:
         vocab_size: int = 64000,
         include_pos: bool = True,
         extra_char_top_n: int = 4000,
+        num_workers: Optional[int] = None,
+        chunk_size: int = 10000,
     ) -> "GrinViMorphTokenizer":
         """Train a morph tokenizer with character-level fallback.
 
-        The vocabulary is composed of:
-          * 4 special tokens
-          * Korean syllable block (U+AC00..U+D7A3) as ``<c:X>`` and ``▁<c:X>``
-            — always included (22,344 entries) so any Korean text is zero-UNK
-          * Top ``extra_char_top_n`` other characters from the corpus
-            (hanja, latin, punctuation, …) in both forms
-          * Remaining budget filled with the most frequent morpheme pieces
+        Parallelized over ``num_workers`` processes (default: all CPU cores).
+        The result is deterministic and bit-identical to the single-process
+        version because Counter aggregation is order-independent and the
+        final sort uses a total ordering on (count, token).
         """
         try:
-            from kiwipiepy import Kiwi
+            from kiwipiepy import Kiwi  # noqa: F401  (checked here for early error)
         except ImportError as exc:
             raise ImportError(
                 "kiwipiepy is required for GrinViMorphTokenizer. Install it with 'pip install kiwipiepy'."
             ) from exc
 
-        kiwi = Kiwi()
+        import os
+        import time
+        import multiprocessing as mp
+
+        if num_workers is None:
+            num_workers = max(1, (os.cpu_count() or 4) - 1)
+
         morph_counter: Counter[str] = Counter()
         char_counter: Counter[str] = Counter()
 
-        def iter_lines():
+        # Build a generator that yields lists of lines (chunks) so workers
+        # process meaningful batches instead of one line at a time.
+        def iter_chunks():
+            buf: List[str] = []
             if isinstance(texts, list):
-                for text in texts:
-                    yield text
+                source = iter(texts)
             else:
-                with open(texts, "r", encoding="utf-8", errors="ignore") as handle:
-                    for line in handle:
-                        yield line
+                source = open(texts, "r", encoding="utf-8", errors="ignore")
+            try:
+                for line in source:
+                    buf.append(line)
+                    if len(buf) >= chunk_size:
+                        yield buf
+                        buf = []
+                if buf:
+                    yield buf
+            finally:
+                if not isinstance(texts, list):
+                    source.close()
 
-        for raw_text in iter_lines():
-            text = raw_text.strip()
-            if not text:
-                continue
-            # Per-character counts (excluding whitespace and Korean syllables —
-            # those are always included regardless of frequency).
-            for ch in text:
-                if ch.isspace():
-                    continue
-                if 0xAC00 <= ord(ch) <= 0xD7A3:
-                    continue
-                char_counter[ch] += 1
-            # Per-morpheme counts.
-            for word in text.split():
-                morphs = kiwi.tokenize(word)
-                if not morphs:
-                    piece = ("▁" + word + "/UNK") if include_pos else ("▁" + word)
-                    morph_counter[piece] += 1
-                    continue
-                for index, token in enumerate(morphs):
-                    piece = f"{token.form}/{token.tag}" if include_pos else token.form
-                    if index == 0:
-                        piece = "▁" + piece
-                    morph_counter[piece] += 1
+        # Best-effort progress estimation against file size.
+        total_bytes: Optional[int] = None
+        if isinstance(texts, str):
+            try:
+                total_bytes = Path(texts).stat().st_size
+            except OSError:
+                total_bytes = None
+
+        print(
+            f"[GrinVi] Training tokenizer with {num_workers} workers, "
+            f"chunk_size={chunk_size}…"
+        )
+        t0 = time.time()
+        chunks_done = 0
+        bytes_seen = 0
+
+        ctx = mp.get_context("fork")
+        with ctx.Pool(
+            processes=num_workers,
+            initializer=_worker_init,
+            initargs=(include_pos,),
+        ) as pool:
+            for partial_morph, partial_char in pool.imap_unordered(
+                _worker_count_chunk, iter_chunks(), chunksize=1
+            ):
+                morph_counter.update(partial_morph)
+                char_counter.update(partial_char)
+                chunks_done += 1
+                # Estimate bytes processed from the partial counters' total weight.
+                # (Not exact but good enough for ETA.)
+                if chunks_done % 5 == 0:
+                    elapsed = time.time() - t0
+                    # Use distinct morphemes accumulated as a rough proxy.
+                    print(
+                        f"[GrinVi]   chunks={chunks_done} "
+                        f"morph_vocab={len(morph_counter):,} "
+                        f"elapsed={elapsed:.0f}s",
+                        flush=True,
+                    )
+
+        print(f"[GrinVi] Counting done in {time.time() - t0:.1f}s. "
+              f"Distinct morphemes={len(morph_counter):,}, "
+              f"distinct chars={len(char_counter):,}")
 
         special_tokens = [
             cls.PAD_TOKEN,

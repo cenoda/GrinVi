@@ -31,6 +31,10 @@ def main():
     ap.add_argument("--vocab_size", type=int, default=80000)
     ap.add_argument("--extra_char_top_n", type=int, default=4000,
                     help="How many non-Hangul chars (hanja, latin, etc.) to include")
+    ap.add_argument("--num_workers", type=int, default=None,
+                    help="Parallel worker count (default: all CPUs)")
+    ap.add_argument("--chunk_size", type=int, default=10000,
+                    help="Lines per work unit (larger = less overhead, default 10000)")
     args = ap.parse_args()
 
     GrinViMorphTokenizer.train(
@@ -38,6 +42,8 @@ def main():
         output_prefix=args.output_prefix,
         vocab_size=args.vocab_size,
         extra_char_top_n=args.extra_char_top_n,
+        num_workers=args.num_workers,
+        chunk_size=args.chunk_size,
     )
     print(f"[OK] Tokenizer written to {args.output_prefix}.json")
 
