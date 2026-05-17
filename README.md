@@ -65,11 +65,12 @@ To run preflight checks, a smoke test, and then start the main training run all 
 ```bash
 python scripts/training/train_pipeline.py \
     --data data/processed/train.txt \
-    --tokenizer morph \
     --tokenizer_model data/raw/ko_wikipedia/ko_tokenizer.json \
     --checkpoint_dir checkpoints/my_experiment \
     --preset small
 ```
+
+> **Note**: Default tokenizer is now `morph` and default vocab size is `80,000`.
 
 This ensures everything is configured correctly before starting an expensive run. Detailed failure modes and recovery notes are documented in [`TRAINING_RUNBOOK.md`](TRAINING_RUNBOOK.md).
 
@@ -115,12 +116,12 @@ python scripts/tools/inference.py \
 
 ## Model Presets
 
-| Preset | Layers | Hidden | Heads | ~Params |
+| Preset | Layers | Hidden | Heads | ~Params (80k vocab) |
 |--------|--------|--------|-------|---------|
-| `tiny`   | 4  | 256  | 4  | ~15 M  |
-| `small`  | 12 | 768  | 12 | ~117 M |
-| `medium` | 24 | 1024 | 16 | ~345 M |
-| `large`  | 24 | 1536 | 16 | ~760 M |
+| `tiny`   | 4  | 256  | 4  | ~23 M  |
+| `small`  | 12 | 768  | 12 | ~137 M |
+| `medium` | 24 | 1024 | 16 | ~460 M |
+| `large`  | 24 | 1536 | 16 | ~972 M |
 
 ---
 

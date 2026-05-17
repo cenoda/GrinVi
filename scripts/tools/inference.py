@@ -32,7 +32,7 @@ def parse_args():
     p.add_argument(
         "--tokenizer",
         choices=["cl100k_base", "sentencepiece", "morph"],
-        default="cl100k_base",
+        default="morph",
         help="Tokenizer used for the checkpoint (use morph for Korean checkpoints)",
     )
     p.add_argument(

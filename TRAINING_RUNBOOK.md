@@ -9,7 +9,6 @@
 ```bash
 python scripts/training/train_pipeline.py \
   --data data/processed/train.txt \
-  --tokenizer morph \
   --tokenizer_model data/raw/ko_wikipedia/ko_tokenizer.json \
   --checkpoint_dir checkpoints/my_new_experiment \
   --preset medium \
@@ -17,6 +16,8 @@ python scripts/training/train_pipeline.py \
   --grad_accum 8 \
   --gpus 1
 ```
+
+- **표준 설정**: 현재 토크나이저는 `morph` (형태소 기반), Vocab Size는 `80,000`을 표준으로 사용합니다. 모든 기본값이 이에 맞춰져 있습니다.
 
 - **장점**: 
   - `preflight`를 강제로 실행하여 데이터/토크나이저 설정을 먼저 검증합니다.

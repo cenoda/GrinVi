@@ -165,7 +165,7 @@ def parse_args():
     p.add_argument("--dtype", choices=["float32", "float16", "bfloat16"], default="bfloat16")
     p.add_argument("--compile", action="store_true", help="torch.compile the model (faster after warmup)")
     p.add_argument("--grad_ckpt", action="store_true", help="Gradient checkpointing (saves ~35%% VRAM)")
-    p.add_argument("--tokenizer", choices=["cl100k_base", "sentencepiece", "morph"], default="cl100k_base",
+    p.add_argument("--tokenizer", choices=["cl100k_base", "sentencepiece", "morph"], default="morph",
                    help="cl100k_base for English, sentencepiece or morph for Korean/multilingual")
     p.add_argument("--tokenizer_model", default=None, type=str,
                    help="Path to tokenizer model file (required if --tokenizer sentencepiece or morph)")

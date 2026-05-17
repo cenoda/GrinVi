@@ -85,7 +85,7 @@ def main():
     # Core arguments that the pipeline needs to know about
     parser.add_argument("--data", required=True, help="Path to training text file")
     parser.add_argument("--eval_data", help="Path to eval text file")
-    parser.add_argument("--tokenizer", choices=["cl100k_base", "sentencepiece", "morph"], default="cl100k_base")
+    parser.add_argument("--tokenizer", choices=["cl100k_base", "sentencepiece", "morph"], default="morph")
     parser.add_argument("--tokenizer_model", help="Path to tokenizer model (required for morph/sp)")
     parser.add_argument("--checkpoint_dir", required=True, help="Directory to save main checkpoints")
     parser.add_argument("--gpus", type=int, default=1, help="Number of GPUs to use (uses torchrun if > 1)")
