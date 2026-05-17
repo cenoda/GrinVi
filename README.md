@@ -23,21 +23,25 @@ A decoder-only transformer language model built from scratch with **PyTorch**.
 
 ```
 GrinVi/
-├── grinvi/
-│   ├── __init__.py      # Public API
-│   ├── config.py        # GrinViConfig — model hyper-parameters & presets
-│   ├── model.py         # Core transformer implementation
-│   ├── tokenizer.py     # Tokenizer (tiktoken cl100k_base + special tokens)
-│   ├── trainer.py       # Training loop with grad accum, cosine LR, etc.
-│   └── generate.py      # Text generation (greedy / top-k / top-p / streaming)
-├── scripts/
-│   ├── train_pipeline.py # Integrated training pipeline (Recommended)
-│   ├── train.py         # Training entry-point
-│   └── generate.py      # Inference entry-point
-├── data/                # Put your training text files here
+├── grinvi/             # Core library (Model, Tokenizer, Trainer)
+├── scripts/            # Training, data prep, and utility scripts
+├── tests/              # Unit tests and verification scripts
+├── logs/               # Training logs and execution history
+├── docs/               # Additional documentation and history
+├── data/               # Local data storage (ignored by git)
+├── checkpoints/        # Model checkpoints (ignored by git)
+├── chat.py             # Simple interactive chat CLI
 ├── requirements.txt
 └── pyproject.toml
 ```
+
+---
+
+## Documentation
+
+- [**TRAINING_RUNBOOK.md**](TRAINING_RUNBOOK.md): 필수 학습 체크리스트, 트러블슈팅 가이드 및 Vast.ai 운영 팁.
+- [**docs/history/**](docs/history/): 프로젝트 주요 결정 사항 및 과거 이슈 기록 (Postmortems).
+- [**LICENSE**](LICENSE): Apache 2.0 License.
 
 ---
 

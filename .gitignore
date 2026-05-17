@@ -12,17 +12,18 @@ __pycache__/
 .pytest_cache/
 
 # Training artifacts
-training_log.txt
-checkpoints/
-checkpoints_*/
-*.safetensors
-*.log
+checkpoints/*
+!checkpoints/.gitkeep
+
+# Logs
+logs/*
+!logs/.gitkeep
+nohup.out
 
 # Data (large files - not tracked in git)
-data/raw/
-data/processed/
-data/generated/
+data/*
+!data/.gitkeep
 
 # IDE
 .idea/
-data/
+.vscode/
