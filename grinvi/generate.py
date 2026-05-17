@@ -39,6 +39,8 @@ class Generator:
         repetition_penalty: float = 1.0,
         do_sample: bool = True,
         stop_on_eos: bool = True,
+        min_new_tokens: int = 0,
+        ban_tokens: Optional[List[int]] = None,
     ) -> str:
         """
         Generate text from a string prompt and return the decoded output
@@ -54,6 +56,8 @@ class Generator:
             repetition_penalty=repetition_penalty,
             do_sample=do_sample,
             stop_on_eos=stop_on_eos,
+            min_new_tokens=min_new_tokens,
+            ban_tokens=ban_tokens,
         )
         return self.tokenizer.decode(generated[0].tolist())
 
@@ -69,12 +73,17 @@ class Generator:
         repetition_penalty: float = 1.0,
         do_sample: bool = True,
         stop_on_eos: bool = True,
+        min_new_tokens: int = 0,
+        ban_tokens: Optional[List[int]] = None,
     ) -> torch.Tensor:
         self.model.eval()
         kv_caches = None
         full_ids = input_ids.clone()
+        prompt_len = input_ids.size(1)
+        eos_id = getattr(self.tokenizer, "eos_token_id", None)
+        ban_set = set(ban_tokens or [])
 
-        for _ in range(max_new_tokens):
+        for step in range(max_new_tokens):
             # Use KV-cache: only pass the last token after the first step
             if kv_caches is None:
                 ctx = full_ids
@@ -83,6 +92,16 @@ class Generator:
 
             logits, kv_caches = self.model(ctx, kv_caches=kv_caches)
             next_logits = logits[:, -1, :]  # (1, vocab_size)
+
+            # Hard ban: certain token IDs are always disallowed
+            if ban_set:
+                for tid in ban_set:
+                    next_logits[0, tid] = float("-inf")
+
+            # min_new_tokens: suppress EOS until we've generated at least N new tokens
+            generated_so_far = full_ids.size(1) - prompt_len
+            if eos_id is not None and generated_so_far < min_new_tokens:
+                next_logits[0, eos_id] = float("-inf")
 
             # Repetition penalty
             if repetition_penalty != 1.0:

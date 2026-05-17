@@ -47,6 +47,10 @@ def parse_args():
     p.add_argument("--repetition_penalty", type=float, default=1.1)
     p.add_argument("--greedy", action="store_true", help="Use greedy decoding (overrides temperature/top-k/top-p)")
     p.add_argument("--stream", action="store_true", help="Stream tokens to stdout")
+    p.add_argument("--min_new_tokens", type=int, default=0,
+                   help="Suppress EOS until at least this many new tokens are generated")
+    p.add_argument("--ban_special", action="store_true",
+                   help="Ban PAD/BOS/UNK during generation (EOS still allowed unless --min_new_tokens)")
     p.add_argument("--device", default=None)
     return p.parse_args()
 
@@ -80,6 +84,13 @@ def main():
                 print(tok, end="", flush=True)
             print()
         else:
+            ban = None
+            if args.ban_special:
+                ban = []
+                for attr in ("pad_token_id", "bos_token_id", "unk_token_id"):
+                    tid = getattr(tokenizer, attr, None)
+                    if tid is not None:
+                        ban.append(tid)
             output = gen.generate(
                 prompt,
                 max_new_tokens=args.max_new_tokens,
@@ -88,6 +99,8 @@ def main():
                 top_p=None if args.greedy else args.top_p,
                 repetition_penalty=args.repetition_penalty,
                 do_sample=not args.greedy,
+                min_new_tokens=args.min_new_tokens,
+                ban_tokens=ban,
             )
             print(output)
 
