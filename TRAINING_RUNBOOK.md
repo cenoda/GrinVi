@@ -176,36 +176,17 @@ preflight -> 30분 smoke test -> checkpoint 생성 확인 -> generation 확인 -
 
 ---
 
-## 8. Vast.ai 운영 팁 (Overstacking & Backup)
+## 8. Vast.ai 운영 가이드 (Checklist)
 
-Vast.ai 같은 원격 서버에서 학습할 때 발생하기 쉬운 문제들을 방지하는 방법입니다.
+Vast.ai 주피터랩 접속부터 최종 완료까지 에이전트와 유저가 협업하여 확인해야 할 상세 체크리스트는 별도 문서로 분리되어 있습니다.
 
-### 8-1. Overstacking 방지 (Rogue processes)
+👉 [Vast.ai Training Guide & Checklist](docs/vast_ai_guide.md)
 
-학습이 비정상 종료되거나 Ctrl+C를 눌렀을 때, `torchrun` 프로세스가 죽지 않고 남아있는 경우가 있습니다. 이 상태에서 새 학습을 시작하면 GPU 메모리가 부족하거나(OOM) 학습 속도가 매우 느려집니다.
+### 요약: 주요 확인 사항
+1. **RCLONE**: 백업이 설정되었는가? (`backup_checkpoints.sh` 실행 여부)
+2. **Overstacking**: 기존 `train.py`가 남아있지 않은가? (`pgrep -f train.py`)
+3. **Disk Space**: 디스크 여유 공간이 충분한가? (최소 10GB 이상 권장)
+4. **Tokenizer Sync**: 체크포인트에 `tokenizer.json`이 포함되어 있는가?
 
-- **증상**: 학습 시작 시 OOM 발생, 또는 GPU 사용량이 평소보다 높음.
-- **해결**: `scripts/training/train_pipeline.py`는 시작 시 기존 프로세스를 체크합니다. 수동으로는 아래 명령어로 정리하세요.
-  ```bash
-  pkill -9 -f train.py
-  pkill -9 -f torchrun
-  ```
-
-### 8-2. 자동 백업 (rclone)
-
-인스턴스가 갑자기 종료되어도 체크포인트를 잃지 않으려면 자동 백업이 필수입니다.
-
-1. **rclone 설정**: 인스턴스에서 `rclone config`를 실행하여 구글 드라이브 등을 설정합니다 (설정 이름: `gdrive`).
-2. **파이프라인 활용**: `scripts/training/train_pipeline.py` 실행 시 `--backup_name`을 넣으세요.
-   ```bash
-   python scripts/training/train_pipeline.py ... --backup_name my_exp_v1
-   ```
-   이러면 5분마다 `gdrive:GrinVi/my_exp_v1` 경로로 새 체크포인트가 자동 업로드됩니다.
-
-### 8-3. Tokenizer Discord 방지
-
-학습 시 사용한 토크나이저 설정이 체크포인트에 포함되지 않아, 나중에 추론할 때 엉뚱한 결과가 나오는 현상입니다.
-
-- **해결**: 이제 `scripts/training/train.py`가 체크포인트 폴더 안에 `tokenizer.json` (또는 `.model`)을 자동으로 복사하고 `config.json`에 토크나이저 타입을 기록합니다.
-- **추론 시**: `GrinViModel.from_pretrained()`와 함께 해당 폴더의 토크나이저를 사용하세요.
+---
 

@@ -18,6 +18,7 @@ import os
 import signal
 import atexit
 import time
+import shutil
 from pathlib import Path
 
 # Track processes for cleanup
@@ -62,7 +63,7 @@ def run_command(cmd, env=None, background=False):
             sys.exit(1)
         return p
 
-def check_for_overstacking():
+def check_for_overstacking(no_interactive=False):
     """Check if there are already training processes running."""
     try:
         # Simple check using pgrep
@@ -73,11 +74,45 @@ def check_for_overstacking():
         if pids:
             print(f"\n[WARNING] Detected {len(pids)} existing 'train.py' processes (PIDs: {', '.join(pids)}).")
             print("This might lead to 'overstacking' and OOM on Vast.ai.")
+            if no_interactive:
+                print("[Pipeline] Running in no-interactive mode. Continuing anyway...")
+                return
             ans = input("Continue anyway? [y/N]: ")
             if ans.lower() != 'y':
                 sys.exit(0)
     except Exception:
         pass # pgrep might not be available
+
+def check_environment():
+    """Check for disk space and rclone if backup is requested."""
+    print("\n[Pipeline] Checking environment...")
+    
+    # 1. Disk Space
+    total, used, free = shutil.disk_usage(".")
+    free_gb = free // (2**30)
+    print(f"[Pipeline] Free disk space: {free_gb} GB")
+    if free_gb < 10:
+        print(f"[WARNING] Low disk space ({free_gb} GB). Training might fail if checkpoints are large.")
+    
+    # 2. Check for rclone if backup is needed (will be checked again later if backup_name is provided)
+
+def check_rclone():
+    """Verify rclone is installed and configured."""
+    try:
+        res = subprocess.run(["rclone", "version"], capture_output=True)
+        if res.returncode != 0:
+            print("[ERROR] rclone is not installed. Required for --backup_name.")
+            return False
+        
+        res = subprocess.run(["rclone", "listremotes"], capture_output=True, text=True)
+        if "gdrive:" not in res.stdout:
+            print("[WARNING] 'gdrive:' remote not found in rclone config.")
+            print("Make sure you have configured rclone with 'gdrive' name.")
+            # We don't exit here as the user might be using a different name or just haven't set it yet
+    except FileNotFoundError:
+        print("[ERROR] rclone command not found. Please install it: 'curl https://rclone.org/install.sh | sudo bash'")
+        return False
+    return True
 
 def main():
     parser = argparse.ArgumentParser(description="GrinVi Unified Training Pipeline")
@@ -110,8 +145,15 @@ def main():
     # The rest are passed to train.py
     args, unknown = parser.parse_known_args()
 
+    check_environment()
+    if args.backup_name:
+        if not check_rclone():
+            sys.exit(1)
+
     if not args.no_interactive:
         check_for_overstacking()
+    elif args.no_interactive:
+        check_for_overstacking(no_interactive=True)
 
     # Determine command prefix (python or torchrun)
     def get_run_prefix(num_gpus):
