@@ -29,6 +29,8 @@ class GrinViConfig:
     rms_norm_eps: float = 1e-6        # epsilon for RMSNorm
 
     # ---------- Tokenizer ----------
+    tokenizer_type: str = "cl100k_base"   # cl100k_base, sentencepiece, morph
+    tokenizer_model: Optional[str] = None # model filename within checkpoint dir
     bos_token_id: int = 1
     eos_token_id: int = 2
     pad_token_id: int = 0

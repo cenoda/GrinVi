@@ -74,6 +74,12 @@ class GrinViTokenizer:
         return self._enc.decode(token_ids)
 
     # ------------------------------------------------------------------
+    def save_pretrained(self, path: str | Path):
+        """Tiktoken tokenizers don't need model files, but we keep the method for consistency."""
+        Path(path).mkdir(parents=True, exist_ok=True)
+        # We don't save anything here for cl100k_base as it's built-in.
+
+    # ------------------------------------------------------------------
     def batch_encode(
         self,
         texts: List[str],

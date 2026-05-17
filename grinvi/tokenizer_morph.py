@@ -258,6 +258,17 @@ class GrinViMorphTokenizer:
 
         return " ".join(words)
 
+    def save_pretrained(self, path: str | Path):
+        import shutil
+        path = Path(path)
+        path.mkdir(parents=True, exist_ok=True)
+        shutil.copy(self.model_path, path / "tokenizer.json")
+
+    @classmethod
+    def from_pretrained(cls, path: str | Path) -> "GrinViMorphTokenizer":
+        path = Path(path)
+        return cls(str(path / "tokenizer.json"))
+
     def batch_encode(
         self,
         texts: List[str],

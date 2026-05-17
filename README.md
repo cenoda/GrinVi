@@ -31,6 +31,7 @@ GrinVi/
 │   ├── trainer.py       # Training loop with grad accum, cosine LR, etc.
 │   └── generate.py      # Text generation (greedy / top-k / top-p / streaming)
 ├── scripts/
+│   ├── train_pipeline.py # Integrated training pipeline (Recommended)
 │   ├── train.py         # Training entry-point
 │   └── generate.py      # Inference entry-point
 ├── data/                # Put your training text files here
@@ -48,27 +49,32 @@ GrinVi/
 pip install -r requirements.txt
 ```
 
-```### 1.5. Run preflight checks before expensive training
+### 1.5. Run Training Pipeline (Recommended)
+
+To run preflight checks, a smoke test, and then start the main training run all in one command:
 
 ```bash
-python scripts/preflight_train.py \
+python scripts/train_pipeline.py \
     --data data/processed/train.txt \
     --tokenizer morph \
-    --tokenizer_model data/raw/ko_wikipedia/ko_tokenizer.json
+    --tokenizer_model data/raw/ko_wikipedia/ko_tokenizer.json \
+    --checkpoint_dir checkpoints/my_experiment \
+    --preset small
 ```
 
-If you are resuming from a checkpoint, include `--resume ...` too.
+This ensures everything is configured correctly before starting an expensive run. Detailed failure modes and recovery notes are documented in [`TRAINING_RUNBOOK.md`](TRAINING_RUNBOOK.md).
 
-Detailed failure modes and recovery notes are documented in
-[`TRAINING_RUNBOOK.md`](TRAINING_RUNBOOK.md).
+### 2. Manual Training Steps (Advanced)
 
-### 2. Smoke-test training (tiny model, synthetic data)
+If you prefer to run steps manually:
+
+#### 2.1. Smoke-test training (tiny model, synthetic data)
 
 ```bash
 python scripts/train.py --preset tiny --max_steps 500 --batch_size 4
 ```
 
-### 3. Train on your own text
+#### 2.2. Train on your own text
 
 ```bash
 python scripts/train.py \
@@ -81,7 +87,7 @@ python scripts/train.py \
     --max_steps 100000
 ```
 
-### 4. Generate text
+### 3. Generate text
 
 ```bash
 # Interactive REPL

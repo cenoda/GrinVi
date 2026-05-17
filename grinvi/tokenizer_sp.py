@@ -199,3 +199,11 @@ class GrinViTokenizerSP:
         shutil.copy(self.sp.model_file(), output_path)
         print(f"[GrinVi] Tokenizer saved to {output_path}")
 
+    def save_pretrained(self, path: str | Path):
+        """Save the tokenizer model to a directory."""
+        import shutil
+        path = Path(path)
+        path.mkdir(parents=True, exist_ok=True)
+        shutil.copy(self.sp.model_file(), path / "tokenizer.model")
+        print(f"[GrinVi] Tokenizer saved to {path / 'tokenizer.model'}")
+

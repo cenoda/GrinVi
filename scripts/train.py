@@ -211,6 +211,8 @@ def main():
         raise ValueError(f"Unknown tokenizer: {args.tokenizer}")
 
     config.vocab_size = tokenizer.vocab_size
+    config.tokenizer_type = args.tokenizer
+    config.tokenizer_model = "tokenizer.json" if args.tokenizer == "morph" else ("tokenizer.model" if args.tokenizer == "sentencepiece" else None)
 
     # Build or restore model
     # Task 13: All ranks load the same checkpoint — GrinViModel.from_pretrained works without conversion
@@ -290,7 +292,7 @@ def main():
         scale_lr=args.scale_lr,
     )
 
-    trainer = Trainer(model, tcfg, train_loader, eval_loader)
+    trainer = Trainer(model, tcfg, train_loader, eval_loader, tokenizer=tokenizer)
 
     if args.resume:
         trainer.load_state(args.resume)

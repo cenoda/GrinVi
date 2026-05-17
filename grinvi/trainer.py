@@ -15,7 +15,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Any
 
 import torch
 import torch.distributed as dist
@@ -156,8 +156,10 @@ class Trainer:
         trainer_cfg: TrainerConfig,
         train_loader: Iterable,   # yields (input_ids, labels, attention_mask)
         eval_loader: Optional[Iterable] = None,
+        tokenizer: Optional[Any] = None,
     ):
         self.cfg = trainer_cfg
+        self.tokenizer = tokenizer
 
         # Task 4.1: Setup distributed — detect DDP via RANK env var
         self.is_ddp, self.rank, self.local_rank = self._setup_distributed()
@@ -318,6 +320,11 @@ class Trainer:
         # Task 9: Wrap training loop in try/except/finally for DDP cleanup
         try:
             self._train_loop()
+        except KeyboardInterrupt:
+            if self.rank == 0:
+                console.print("\n[yellow]⚠ Training interrupted by user. Saving checkpoint...[/yellow]")
+            # 현재 스텝 기준으로 저장
+            self._save(f"step-{(self.step + 1) // self.cfg.gradient_accumulation_steps}-interrupted")
         except RuntimeError as e:
             if self.rank == 0:
                 console.print(f"  [red]✗ RuntimeError: {e}[/red]")
@@ -538,7 +545,11 @@ class Trainer:
             try:
                 best_dir.mkdir(parents=True, exist_ok=True)
                 # Task 7: Use _get_raw_model to unwrap DDP before saving
-                _get_raw_model(self.model, self.is_ddp).save_pretrained(str(best_dir))
+                raw_model = _get_raw_model(self.model, self.is_ddp)
+                raw_model.save_pretrained(str(best_dir))
+
+                if self.tokenizer is not None and hasattr(self.tokenizer, "save_pretrained"):
+                    self.tokenizer.save_pretrained(best_dir)
 
                 opt_state = {
                     "step": self.step,
@@ -600,7 +611,11 @@ class Trainer:
                 out = self.cfg.checkpoint_dir / f"step-{tag}"
                 Path(out).parent.mkdir(parents=True, exist_ok=True)
                 # Task 7: Use _get_raw_model to unwrap DDP before saving
-                _get_raw_model(self.model, self.is_ddp).save_pretrained(str(out))
+                raw_model = _get_raw_model(self.model, self.is_ddp)
+                raw_model.save_pretrained(str(out))
+
+                if self.tokenizer is not None and hasattr(self.tokenizer, "save_pretrained"):
+                    self.tokenizer.save_pretrained(out)
 
                 opt_state = {
                     "step": self.step,
