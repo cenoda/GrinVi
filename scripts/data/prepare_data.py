@@ -261,10 +261,10 @@ def main():
 
     print(f"\n[GrinVi] Done! Training files are in: {out}")
     print(f"  Train with:")
-    print(f"    python scripts/train.py --preset small --data {out}/train.txt")
+    print(f"    python scripts/training/train_pipeline.py --preset small --data {out}/train.txt")
     if args.dataset == "ko_wikipedia":
         print(f"\n  For Korean training, also use a Korean tokenizer:")
-        print(f"    python scripts/train.py \\")
+        print(f"    python scripts/training/train_pipeline.py \\")
         print(f"        --preset small \\")
         print(f"        --tokenizer morph \\")
         print(f"        --tokenizer_model {out}/ko_tokenizer.json \\")

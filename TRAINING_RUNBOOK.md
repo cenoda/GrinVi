@@ -17,7 +17,8 @@ python scripts/training/train_pipeline.py \
   --gpus 1
 ```
 
-- **표준 설정**: 현재 토크나이저는 `morph` (형태소 기반), Vocab Size는 `80,000`을 표준으로 사용합니다. 모든 기본값이 이에 맞춰져 있습니다.
+- **표준 설정**: 현재 토크나이저는 `morph` (형태소 기반), Vocab Size는 `80,000`을 표준으로 사용합니다. 모든 주요 스크립트의 기본값이 이에 맞춰져 있습니다.
+- **자동 감지 기능**: `chat.py`, `inference.py`, `diagnose.py` 등은 체크포인트 디렉토리에 `tokenizer.json`이 있으면 별도의 인자 없이도 이를 자동으로 로드합니다.
 
 - **장점**: 
   - `preflight`를 강제로 실행하여 데이터/토크나이저 설정을 먼저 검증합니다.
@@ -183,10 +184,11 @@ Vast.ai 주피터랩 접속부터 최종 완료까지 에이전트와 유저가 
 👉 [Vast.ai Training Guide & Checklist](docs/vast_ai_guide.md)
 
 ### 요약: 주요 확인 사항
-1. **RCLONE**: 백업이 설정되었는가? (`backup_checkpoints.sh` 실행 여부)
+1. **RCLONE**: 백업이 설정되었는가? (`train_pipeline.py --backup_name` 사용 권장)
 2. **Overstacking**: 기존 `train.py`가 남아있지 않은가? (`pgrep -f train.py`)
 3. **Disk Space**: 디스크 여유 공간이 충분한가? (최소 10GB 이상 권장)
 4. **Tokenizer Sync**: 체크포인트에 `tokenizer.json`이 포함되어 있는가?
+5. **Automation**: `scripts/infra/start_vast.sh`를 통해 환경 구축과 파이프라인 시작을 자동화할 수 있음.
 
 ---
 

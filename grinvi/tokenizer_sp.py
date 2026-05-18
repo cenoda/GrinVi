@@ -121,7 +121,7 @@ class GrinViTokenizerSP:
         cls,
         texts: Union[str, List[str]],
         output_prefix: str = "grinvi_sp",
-        vocab_size: int = 64000,
+        vocab_size: int = 80000,
         character_coverage: float = 0.9995,
         model_type: str = "bpe",  # or "unigram", "char", "word"
     ) -> "GrinViTokenizerSP":

@@ -137,7 +137,7 @@ def main():
     parser.add_argument("--skip_preflight", action="store_true", help="Skip safety checks")
     parser.add_argument("--skip_smoke", action="store_true", help="Skip 50-step smoke test")
     parser.add_argument("--smoke_steps", type=int, default=50, help="Number of steps for smoke test")
-    parser.add_argument("--no_interactive", action="store_true", help="Do not ask for confirmation before main run")
+    parser.add_argument("--no-interactive", action="store_true", dest="no_interactive", help="Do not ask for confirmation before main run")
     parser.add_argument("--prompt", default="질문: 인공지능에 대해 설명해줘.\n답변:", help="Prompt for generation check")
     parser.add_argument("--backup_name", help="Remote folder name for backup (e.g. my_experiment)")
     parser.add_argument("--upload_interval", type=int, default=300, help="Upload interval in seconds")

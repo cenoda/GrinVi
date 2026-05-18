@@ -36,9 +36,12 @@ token = ${RCLONE_GDRIVE_TOKEN}
 team_drive =
 RCLONE_EOF
 
-# 3. 레포 클론
+# 3. 레포 클론 및 업데이트
 if [ ! -d "/workspace/GrinVi" ]; then
     git clone https://github.com/cenoda/GrinVi /workspace/GrinVi
+else
+    cd /workspace/GrinVi
+    git pull
 fi
 cd /workspace/GrinVi
 
@@ -77,33 +80,28 @@ else
     echo "No medium checkpoint found, starting from scratch."
 fi
 
-# 7. GPU 확인 및 DDP 설정
-nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
-NUM_GPUS=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
-if [ "$NUM_GPUS" -gt 1 ]; then
-    echo "Multiple GPUs detected ($NUM_GPUS). Using torchrun for DDP."
-    LAUNCH_CMD="torchrun --nproc_per_node=$NUM_GPUS"
-else
-    echo "Single GPU detected. Using python."
-    LAUNCH_CMD="python"
-fi
+# 7. 학습 시작 (통합 파이프라인 사용)
+echo "Starting training via train_pipeline.py..."
 
-# 8. 백업 프로세스 시작
-echo "Starting checkpoint backup daemon..."
-nohup bash scripts/backup_checkpoints.sh /workspace/GrinVi > /workspace/GrinVi/backup.log 2>&1 &
-echo "Backup PID: $!"
+# 파이프라인은 preflight, smoke test, generation check를 자동으로 수행합니다.
+# --backup_name을 지정하면 rclone 백업도 자동으로 시작됩니다.
+# --no-interactive는 nohup 환경에서 필수입니다.
 
-# 9. 학습 시작
-echo "Starting training..."
-nohup $LAUNCH_CMD scripts/train.py \
+nohup python scripts/training/train_pipeline.py \
     --preset medium \
     --tokenizer morph \
     --tokenizer_model data/raw/ko_wikipedia/ko_tokenizer.json \
     --data data/processed/train.txt \
+    --checkpoint_dir /workspace/GrinVi/checkpoints/vast_training \
+    --max_steps 150000 \
+    --smoke_steps 20 \
+    --no-interactive \
+    --backup_name gdrive:GrinVi/checkpoints \
+    $RESUME_FLAG \
+    -- \
     --seq_len 512 \
     --batch_size 128 \
     --grad_accum 1 \
-    --max_steps 150000 \
     --eval_interval 2000 \
     --save_interval 2000 \
     --lr 3e-4 \
@@ -111,9 +109,7 @@ nohup $LAUNCH_CMD scripts/train.py \
     --grad_ckpt \
     --compile \
     --keep_last_n 3 \
-    $RESUME_FLAG \
     > training.log 2>&1 &
 
-echo "Training PID: $!"
+echo "Pipeline PID: $!"
 echo "Monitor: tail -f /workspace/GrinVi/training.log"
-echo "Backup:  tail -f /workspace/GrinVi/backup.log"

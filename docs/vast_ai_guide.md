@@ -73,6 +73,22 @@ Vast.ai와 같은 원격 서버 환경에서 GrinVi 모델을 학습할 때, 실
 
 ---
 
+## 6. 편리한 시작을 위한 자동화 스크립트 (start_vast.sh)
+
+인스턴스 생성 시 On-start script로 입력하거나, 주피터랩 터미널에서 즉시 실행하여 환경 구축부터 학습 시작까지 자동화할 수 있습니다.
+
+```bash
+# 환경변수 설정 (rclone 토큰)
+export RCLONE_GDRIVE_TOKEN='YOUR_TOKEN_HERE'
+
+# 스크립트 실행
+bash scripts/infra/start_vast.sh
+```
+
+`start_vast.sh`는 내부적으로 `train_pipeline.py`를 호출하여 안전 점검, Smoke test, 본 학습, 자동 백업을 모두 수행합니다.
+
+---
+
 ## 에이전트를 위한 명령어 템플릿 (Vast.ai 전용)
 
 ```bash

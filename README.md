@@ -128,7 +128,7 @@ python scripts/tools/inference.py \
 ## Python API
 
 ```python
-from grinvi import GrinViConfig, GrinViModel, GrinViTokenizer, Generator
+from grinvi import GrinViConfig, GrinViModel, GrinViMorphTokenizer, Generator
 
 # Build model
 config = GrinViConfig.small()
@@ -141,10 +141,10 @@ input_ids = torch.randint(0, config.vocab_size, (2, 128))
 labels    = input_ids.clone()
 loss = model(input_ids, labels=labels)
 
-# Inference
-tokenizer = GrinViTokenizer()
+# Inference (loads from checkpoint dir auto-detecting tokenizer.json)
+tokenizer = GrinViMorphTokenizer.from_pretrained("my_checkpoint")
 gen = Generator(model, tokenizer)
-print(gen.generate("The meaning of life is"))
+print(gen.generate("질문: 인공지능이란?\n답변:"))
 
 # Save / load
 model.save_pretrained("my_checkpoint")

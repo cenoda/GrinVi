@@ -38,6 +38,7 @@ def main():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--checkpoint", type=str, default=None)
+    parser.add_argument("--tokenizer_model", type=str, default="data/raw/ko_wikipedia/ko_tokenizer.json")
     args = parser.parse_args()
 
     console.print()
@@ -54,13 +55,25 @@ def main():
         console.print(f"[green]✓ Using:[/green] {ckpt_path}")
     else:
         console.print("[yellow]Loading latest checkpoint...[/yellow]")
-        ckpt_path = find_latest_checkpoint()
-        console.print(f"[green]✓ Using:[/green] {ckpt_path}")
+        try:
+            ckpt_path = find_latest_checkpoint()
+            console.print(f"[green]✓ Using:[/green] {ckpt_path}")
+        except FileNotFoundError as e:
+            console.print(f"[red]Error: {e}[/red]")
+            return
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     console.print("[yellow]Loading tokenizer...[/yellow]")
-    tokenizer = GrinViMorphTokenizer("data/raw/ko_wikipedia/ko_tokenizer.json")
+    # Try to load tokenizer from checkpoint directory first
+    if (ckpt_path / "tokenizer.json").exists():
+        console.print(f"[dim]  (found in checkpoint: {ckpt_path / 'tokenizer.json'})[/dim]")
+        tokenizer = GrinViMorphTokenizer.from_pretrained(str(ckpt_path))
+    elif Path(args.tokenizer_model).exists():
+        tokenizer = GrinViMorphTokenizer(args.tokenizer_model)
+    else:
+        console.print(f"[red]Error: Tokenizer not found in {ckpt_path} or {args.tokenizer_model}[/red]")
+        return
 
     console.print("[yellow]Loading model...[/yellow]")
     model = GrinViModel.from_pretrained(str(ckpt_path))

@@ -39,7 +39,7 @@ def hr(title: str):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--checkpoint", required=True)
-    ap.add_argument("--tokenizer_model", required=True)
+    ap.add_argument("--tokenizer_model", default=None)
     ap.add_argument("--prompt", default="질문: 어디인가요?\n답변:")
     ap.add_argument("--train_txt", default="data/raw/ko_wikipedia/train.txt",
                     help="학습 텍스트 첫 줄 인코드 검증용 (없으면 스킵)")
@@ -48,7 +48,29 @@ def main():
 
     # ------------------------------------------------------------------
     hr("[1] 토크나이저 로드")
-    tok = GrinViMorphTokenizer(args.tokenizer_model)
+    ckpt_path = Path(args.checkpoint)
+    tokenizer_model = args.tokenizer_model
+
+    # Try to auto-detect from checkpoint
+    if tokenizer_model is None:
+        if (ckpt_path / "tokenizer.json").exists():
+            tokenizer_model = str(ckpt_path / "tokenizer.json")
+            print(f"[GrinVi] Found tokenizer.json in checkpoint.")
+        elif (ckpt_path / "tokenizer.model").exists():
+            tokenizer_model = str(ckpt_path / "tokenizer.model")
+            print(f"[GrinVi] Found tokenizer.model in checkpoint.")
+
+    if not tokenizer_model:
+        # Fallback to a common default if exists
+        default_path = "data/raw/ko_wikipedia/ko_tokenizer.json"
+        if Path(default_path).exists():
+            tokenizer_model = default_path
+            print(f"[GrinVi] Using default tokenizer: {default_path}")
+        else:
+            print("Error: --tokenizer_model is required (not found in checkpoint or default path)")
+            sys.exit(1)
+
+    tok = GrinViMorphTokenizer(tokenizer_model)
     print(f"vocab_size        = {tok.vocab_size:,}")
     print(f"PAD/BOS/EOS/UNK   = {tok.pad_token_id} / {tok.bos_token_id} / "
           f"{tok.eos_token_id} / {tok.unk_token_id}")

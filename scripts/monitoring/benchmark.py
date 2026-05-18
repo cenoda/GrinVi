@@ -20,7 +20,6 @@ from rich.table import Table
 
 from grinvi.config import GrinViConfig
 from grinvi.model import GrinViModel
-from grinvi.tokenizer import GrinViTokenizer
 
 console = Console()
 
@@ -28,9 +27,8 @@ console = Console()
 def benchmark(preset: str, batch_size: int, seq_len: int, dtype_str: str,
               grad_ckpt: bool, n_iters: int = 20, device: str = "cuda"):
     dtype = {"float32": torch.float32, "float16": torch.float16, "bfloat16": torch.bfloat16}[dtype_str]
-    tok = GrinViTokenizer()
     cfg = getattr(GrinViConfig, preset)()
-    cfg.vocab_size = tok.vocab_size
+    # Use config's default vocab size (which is now 80,000)
     model = GrinViModel(cfg).to(device).to(dtype)
     if grad_ckpt:
         model.enable_gradient_checkpointing()

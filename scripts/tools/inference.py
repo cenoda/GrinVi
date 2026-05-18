@@ -4,11 +4,11 @@ scripts/generate.py — Generate text with a trained GrinVi checkpoint.
 Examples
 --------
 Interactive REPL:
-    python scripts/generate.py --checkpoint checkpoints/step-final
+    python scripts/tools/inference.py --checkpoint checkpoints/step-final
 
 Single prompt:
-    python scripts/generate.py --checkpoint checkpoints/step-final \
-        --prompt "Once upon a time" --max_new_tokens 300
+    python scripts/tools/inference.py --checkpoint checkpoints/step-final \
+        --prompt "질문: 인공지능에 대해 설명해줘.\n답변:" --max_new_tokens 300
 """
 from __future__ import annotations
 
@@ -59,22 +59,35 @@ def main():
     args = parse_args()
     device = args.device or ("cuda" if torch.cuda.is_available() else "cpu")
 
-    print(f"[GrinVi] Loading model from '{args.checkpoint}' on {device} …")
-    model = GrinViModel.from_pretrained(args.checkpoint, device=device)
-    if args.tokenizer == "sentencepiece":
-        if not args.tokenizer_model:
-            raise SystemExit("--tokenizer_model is required when --tokenizer sentencepiece")
-        from grinvi.tokenizer_sp import GrinViTokenizerSP
+    ckpt_path = Path(args.checkpoint)
+    print(f"[GrinVi] Loading model from '{ckpt_path}' on {device} …")
+    model = GrinViModel.from_pretrained(str(ckpt_path), device=device)
 
-        tokenizer = GrinViTokenizerSP(args.tokenizer_model)
-    elif args.tokenizer == "morph":
-        if not args.tokenizer_model:
-            raise SystemExit("--tokenizer_model is required when --tokenizer morph")
+    # Try to auto-detect tokenizer from checkpoint directory
+    tokenizer = None
+    if (ckpt_path / "tokenizer.json").exists():
+        print(f"[GrinVi] Found tokenizer.json in checkpoint, loading as morph...")
         from grinvi.tokenizer_morph import GrinViMorphTokenizer
+        tokenizer = GrinViMorphTokenizer.from_pretrained(str(ckpt_path))
+    elif (ckpt_path / "tokenizer.model").exists():
+        print(f"[GrinVi] Found tokenizer.model in checkpoint, loading as sentencepiece...")
+        from grinvi.tokenizer_sp import GrinViTokenizerSP
+        tokenizer = GrinViTokenizerSP.from_pretrained(str(ckpt_path))
 
-        tokenizer = GrinViMorphTokenizer(args.tokenizer_model)
-    else:
-        tokenizer = GrinViTokenizer()
+    if tokenizer is None:
+        if args.tokenizer == "sentencepiece":
+            if not args.tokenizer_model:
+                raise SystemExit("--tokenizer_model is required when --tokenizer sentencepiece and not found in checkpoint")
+            from grinvi.tokenizer_sp import GrinViTokenizerSP
+            tokenizer = GrinViTokenizerSP(args.tokenizer_model)
+        elif args.tokenizer == "morph":
+            if not args.tokenizer_model:
+                raise SystemExit("--tokenizer_model is required when --tokenizer morph and not found in checkpoint")
+            from grinvi.tokenizer_morph import GrinViMorphTokenizer
+            tokenizer = GrinViMorphTokenizer(args.tokenizer_model)
+        else:
+            tokenizer = GrinViTokenizer()
+
     gen = Generator(model, tokenizer, device=device)
 
     def run_prompt(prompt: str):

@@ -31,7 +31,7 @@ def parse_args():
     p = argparse.ArgumentParser(description="Preflight checks for GrinVi training runs")
     p.add_argument("--data", required=True, help="Training text file")
     p.add_argument("--eval_data", default=None, help="Optional eval text file")
-    p.add_argument("--tokenizer", choices=["cl100k_base", "sentencepiece", "morph"], default="cl100k_base")
+    p.add_argument("--tokenizer", choices=["cl100k_base", "sentencepiece", "morph"], default="morph")
     p.add_argument("--tokenizer_model", default=None, help="Tokenizer model path for sentencepiece/morph")
     p.add_argument("--resume", default=None, help="Checkpoint directory to resume from")
     p.add_argument("--sample_lines", type=int, default=128, help="Number of lines to sample per file position")
@@ -39,17 +39,26 @@ def parse_args():
 
 
 def build_tokenizer(args):
+    tokenizer_model = args.tokenizer_model
+    if not tokenizer_model and args.resume:
+        resume_dir = Path(args.resume)
+        if (resume_dir / "tokenizer.json").exists():
+            tokenizer_model = str(resume_dir / "tokenizer.json")
+        elif (resume_dir / "tokenizer.model").exists():
+            tokenizer_model = str(resume_dir / "tokenizer.model")
+
     if args.tokenizer == "cl100k_base":
         return GrinViTokenizer()
-    if not args.tokenizer_model:
-        raise SystemExit(f"--tokenizer_model is required when --tokenizer {args.tokenizer}")
+
+    if not tokenizer_model:
+        raise SystemExit(f"--tokenizer_model is required when --tokenizer {args.tokenizer} (and not found in resume dir)")
+
     if args.tokenizer == "sentencepiece":
         from grinvi.tokenizer_sp import GrinViTokenizerSP
+        return GrinViTokenizerSP(tokenizer_model)
 
-        return GrinViTokenizerSP(args.tokenizer_model)
     from grinvi.tokenizer_morph import GrinViMorphTokenizer
-
-    return GrinViMorphTokenizer(args.tokenizer_model)
+    return GrinViMorphTokenizer(tokenizer_model)
 
 
 def sample_lines(path: Path, lines_per_probe: int) -> list[str]:

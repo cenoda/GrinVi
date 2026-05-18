@@ -40,9 +40,10 @@ class TextDataset(IterableDataset):
     """
     Streaming text-file dataset — 25GB 같은 초대용량 텍스트를 실시간으로 읽기 위해 IterableDataset으로 변경합니다.
     """
-    def __init__(self, path: str, tokenizer, seq_len: int = 512):
+    def __init__(self, path: str, tokenizer, tokenizer_model: str = None, seq_len: int = 512):
         self.seq_len = seq_len
         self.tokenizer = tokenizer
+        self.tokenizer_model = tokenizer_model
         self.path = path
 
     def __iter__(self):
@@ -112,9 +113,17 @@ class TextDataset(IterableDataset):
 
     def __setstate__(self, state):
         self.__dict__.update(state)
-        # 형태소 토크나이저 복원
-        from grinvi.tokenizer_morph import GrinViMorphTokenizer
-        self.tokenizer = GrinViMorphTokenizer("data/raw/ko_wikipedia/ko_tokenizer.json")
+        # 토크나이저 복원
+        if self.tokenizer_model:
+            from grinvi.tokenizer_morph import GrinViMorphTokenizer
+            from grinvi.tokenizer_sp import GrinViTokenizerSP
+            if self.tokenizer_model.endswith(".json"):
+                self.tokenizer = GrinViMorphTokenizer(self.tokenizer_model)
+            else:
+                self.tokenizer = GrinViTokenizerSP(self.tokenizer_model)
+        else:
+            from grinvi.tokenizer import GrinViTokenizer
+            self.tokenizer = GrinViTokenizer()
 
 
 def collate_fn(batch):
@@ -193,20 +202,28 @@ def main():
     config: GrinViConfig = getattr(GrinViConfig, args.preset)()
 
     # Choose tokenizer
+    tokenizer_model = args.tokenizer_model
+    if not tokenizer_model and args.resume:
+        resume_dir = Path(args.resume)
+        if (resume_dir / "tokenizer.json").exists():
+            tokenizer_model = str(resume_dir / "tokenizer.json")
+        elif (resume_dir / "tokenizer.model").exists():
+            tokenizer_model = str(resume_dir / "tokenizer.model")
+
     if args.tokenizer == "cl100k_base":
         tokenizer = GrinViTokenizer()
     elif args.tokenizer == "sentencepiece":
-        if not args.tokenizer_model:
-            print("[ERROR] --tokenizer sentencepiece requires --tokenizer_model <path_to.model>")
+        if not tokenizer_model:
+            print("[ERROR] --tokenizer sentencepiece requires --tokenizer_model <path_to.model> (not found in resume dir)")
             sys.exit(1)
         from grinvi.tokenizer_sp import GrinViTokenizerSP
-        tokenizer = GrinViTokenizerSP(args.tokenizer_model)
+        tokenizer = GrinViTokenizerSP(tokenizer_model)
     elif args.tokenizer == "morph":
-        if not args.tokenizer_model:
-            print("[ERROR] --tokenizer morph requires --tokenizer_model <path_to.json>")
+        if not tokenizer_model:
+            print("[ERROR] --tokenizer morph requires --tokenizer_model <path_to.json> (not found in resume dir)")
             sys.exit(1)
         from grinvi.tokenizer_morph import GrinViMorphTokenizer
-        tokenizer = GrinViMorphTokenizer(args.tokenizer_model)
+        tokenizer = GrinViMorphTokenizer(tokenizer_model)
     else:
         raise ValueError(f"Unknown tokenizer: {args.tokenizer}")
 
@@ -227,8 +244,8 @@ def main():
 
     # Dataset
     if args.data:
-        train_ds = TextDataset(args.data, tokenizer, args.seq_len)
-        eval_ds  = TextDataset(args.eval_data, tokenizer, args.seq_len) if args.eval_data else None
+        train_ds = TextDataset(args.data, tokenizer, tokenizer_model=tokenizer_model, seq_len=args.seq_len)
+        eval_ds  = TextDataset(args.eval_data, tokenizer, tokenizer_model=tokenizer_model, seq_len=args.seq_len) if args.eval_data else None
     else:
         if not is_ddp or rank == 0:
             print("[GrinVi] No --data provided, using synthetic random data for smoke-test.")

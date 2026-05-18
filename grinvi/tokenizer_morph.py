@@ -314,7 +314,7 @@ class GrinViMorphTokenizer:
         cls,
         texts: Union[str, List[str]],
         output_prefix: str = "grinvi_ko_morph",
-        vocab_size: int = 64000,
+        vocab_size: int = 80000,
         include_pos: bool = True,
         extra_char_top_n: int = 4000,
         num_workers: Optional[int] = None,
